@@ -4,13 +4,16 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-airtable:
+  airtable-sync:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
       - name: Mostrar Base ID
         run: |
-          echo "Conectado"
+          echo "Base ID: appVZGkndj6o8CyV0"
 
       - name: Verificar Token
         env:
@@ -22,3 +25,11 @@ jobs:
           else
             echo "Token encontrado correctamente"
           fi
+
+      - name: Consultar Airtable
+        env:
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+        run: |
+          curl -X GET \
+          "https://api.airtable.com/v0/appVZGkndj6o8CyV0/Proveedores" \
+          -H "Authorization: Bearer $AIRTABLE_TOKEN"
