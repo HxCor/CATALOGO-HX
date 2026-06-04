@@ -1,0 +1,24 @@
+name: Airtable Sync
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-airtable:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Mostrar Base ID
+        run: |
+          echo "Conectado"
+
+      - name: Verificar Token
+        env:
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+        run: |
+          if [ -z "$AIRTABLE_TOKEN" ]; then
+            echo "Token no encontrado"
+            exit 1
+          else
+            echo "Token encontrado correctamente"
+          fi
