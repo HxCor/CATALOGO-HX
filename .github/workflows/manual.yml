@@ -21,20 +21,26 @@ jobs:
           curl -s -X GET \
           "https://api.airtable.com/v0/appVZGkndj6o8CyV0/Proveedores" \
           -H "Authorization: Bearer $AIRTABLE_TOKEN" \
-          | jq '.records | map(select(.fields.Empresa != null)) | map({
-              id: .id,
-              empresa: .fields.Empresa,
-              categoria: .fields.Categoria,
-              ciudad: .fields.Ciudad,
-              estado: .fields.Estado,
-              sitioWeb: .fields["Sitio Web"],
-              attachments: .fields.Attachments
-            })' > proveedores.json
+          | jq '[.records[]
+            | select(.fields.Empresa != null)
+            | {
+                id: .id,
+                empresa: .fields.Empresa,
+                categoria: .fields.Categoria,
+                ciudad: .fields.Ciudad,
+                estado: .fields.Estado,
+                sitioWeb: .fields["Sitio Web"],
+                attachments: .fields.Attachments
+              }
+          ]' > proveedores.json
 
       - name: Guardar cambios
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
+
           git add proveedores.json
+
           git commit -m "Actualizar proveedores desde Airtable" || echo "No hay cambios"
+
           git push
