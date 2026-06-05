@@ -21,7 +21,7 @@ jobs:
           curl -s -X GET \
           "https://api.airtable.com/v0/appVZGkndj6o8CyV0/Proveedores" \
           -H "Authorization: Bearer $AIRTABLE_TOKEN" \
-          | jq '.records | map({
+          | jq '.records | map(select(.fields.Empresa != null)) | map({
               id: .id,
               empresa: .fields.Empresa,
               categoria: .fields.Categoria,
