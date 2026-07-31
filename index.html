@@ -1366,6 +1366,100 @@ function getLogosExtra() {
 }
 function saveLogosExtra(obj) { localStorage.setItem(LS_LOGOS, JSON.stringify(obj)); }
 
+const HX_API_BASE = "https://catalogo-hx-backend.armando-avila.workers.dev";
+
+function proveedorToAirtableFields(entry) {
+  const fields = {};
+
+  if (entry.nombre) fields["Empresa"] = entry.nombre;
+  if (entry.rfc) fields["RFC"] = entry.rfc;
+  if (entry.categoria) fields["Categoria"] = entry.categoria;
+  if (typeof entry.repse === "boolean") fields["REPSE"] = entry.repse;
+
+  if (entry.servicios) {
+    fields["Actividades / Servicios"] = Array.isArray(entry.servicios)
+      ? entry.servicios.join(", ")
+      : String(entry.servicios);
+  }
+
+  if (entry.contacto) fields["Contacto"] = entry.contacto;
+  if (entry.telefono) fields["Telefono"] = entry.telefono;
+  if (entry.email) fields["Email"] = entry.email;
+  if (entry.estado) fields["Estado"] = entry.estado;
+  if (entry.ciudad) fields["Ciudad"] = entry.ciudad;
+  if (entry.web) fields["Sitio Web"] = entry.web;
+
+  return fields;
+}
+
+async function createProveedorAirtable(entry) {
+  const response = await fetch(`${HX_API_BASE}/proveedores`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      fields: proveedorToAirtableFields(entry),
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    console.error("Error creando proveedor en Airtable:", data);
+    throw new Error("No se pudo guardar en Airtable");
+  }
+
+  return data.data;
+}
+
+async function updateProveedorAirtable(entry) {
+  if (!entry._airtableId) return null;
+
+  const response = await fetch(`${HX_API_BASE}/proveedores`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      recordId: entry._airtableId,
+      fields: proveedorToAirtableFields(entry),
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    console.error("Error actualizando proveedor en Airtable:", data);
+    throw new Error("No se pudo actualizar en Airtable");
+  }
+
+  return data.data;
+}
+
+async function deleteProveedorAirtable(entry) {
+  if (!entry || !entry._airtableId) return null;
+
+  const response = await fetch(`${HX_API_BASE}/proveedores`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      recordId: entry._airtableId,
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    console.error("Error eliminando proveedor en Airtable:", data);
+    throw new Error("No se pudo eliminar en Airtable");
+  }
+
+  return data.data;
+}
+
 function getLogoForRfc(rfc) {
   const extras = getLogosExtra();
   return extras[rfc] || LOGOS[rfc] || null;
@@ -1746,7 +1840,7 @@ function addBankField(data){
     </div>`;
   document.getElementById("banksContainer").appendChild(el);
 }
-function saveForm(){
+async function saveForm(){
   const nombre=document.getElementById("fNombre").value.trim();
   const rfc   =document.getElementById("fRfc").value.trim();
   const cat   =document.getElementById("fCat").value;
@@ -1764,12 +1858,38 @@ function saveForm(){
   if(pendingLogoB64){
     const extras=getLogosExtra(); extras[rfc]=pendingLogoB64; saveLogosExtra(extras); pendingLogoB64=null;
   }
-  const provs=getProveedores();
-  if(editIdx>=0){ provs[editIdx]=entry; showToast("Proveedor actualizado correctamente.","success"); }
-  else           { provs.push(entry);   showToast("Proveedor agregado al catálogo.","success"); }
-  saveProveedores(provs);
-  closeOverlay('formOverlay');
-  updateStats(); updateCounts(); renderSidebar(); renderCards();
+ const provs=getProveedores();
+
+  try {
+    if(editIdx>=0){
+      entry._airtableId = provs[editIdx]?._airtableId || entry._airtableId;
+
+      if (entry._airtableId) {
+        await updateProveedorAirtable(entry);
+      } else {
+        const created = await createProveedorAirtable(entry);
+        entry._airtableId = created.id;
+      }
+
+      provs[editIdx]=entry;
+      showToast("Proveedor actualizado correctamente.","success");
+    }
+    else {
+      const created = await createProveedorAirtable(entry);
+      entry._airtableId = created.id;
+
+      provs.push(entry);
+      showToast("Proveedor agregado al catálogo.","success");
+    }
+
+    saveProveedores(provs);
+    closeOverlay('formOverlay');
+    updateStats(); updateCounts(); renderSidebar(); renderCards();
+
+  } catch (error) {
+    console.error(error);
+    showToast("No se pudo guardar en Airtable. Revisa la consola.","error");
+  }
 }
 
 /* ── DELETE ── */
@@ -1780,10 +1900,23 @@ function confirmDelete(idx){
   document.getElementById("confirmOkBtn").onclick=()=>{ doDelete(idx); closeOverlay('confirmOverlay'); };
   openOverlay('confirmOverlay');
 }
-function doDelete(idx){
-  const provs=getProveedores(); provs.splice(idx,1); saveProveedores(provs);
-  showToast("Proveedor eliminado del catálogo.","success");
-  updateStats(); updateCounts(); renderSidebar(); renderCards();
+async function doDelete(idx){
+  const provs=getProveedores();
+  const entry = provs[idx];
+
+  try {
+    await deleteProveedorAirtable(entry);
+
+    provs.splice(idx,1);
+    saveProveedores(provs);
+
+    showToast("Proveedor eliminado del catálogo.","success");
+    updateStats(); updateCounts(); renderSidebar(); renderCards();
+
+  } catch (error) {
+    console.error(error);
+    showToast("No se pudo eliminar en Airtable. Revisa la consola.","error");
+  }
 }
 
 /* ── USER MANAGEMENT ── */
