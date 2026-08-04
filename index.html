@@ -1996,7 +1996,7 @@ function confirmDelete(idx){
 async function doDelete(idx){
   const provs=getProveedores();
   const entry = provs[idx];
-
+  
   try {
     await syncBancosAirtable({ ...entry, bancos: [] });
     await deleteProveedorAirtable(entry);
