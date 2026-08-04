@@ -1973,6 +1973,7 @@ async function saveForm(){
       showToast("Proveedor agregado al catálogo.","success");
     }
 
+
     await syncBancosAirtable(entry);
     saveProveedores(provs);
     closeOverlay('formOverlay');
@@ -1997,6 +1998,7 @@ async function doDelete(idx){
   const entry = provs[idx];
 
   try {
+     await syncBancosAirtable({ ...entry, bancos: [] });
     await deleteProveedorAirtable(entry);
 
     provs.splice(idx,1);
