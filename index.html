@@ -2172,12 +2172,15 @@ async function saveUser(){
     if(editIdx >= 0){
       usuarioGuardado._airtableId = users[editIdx]?._airtableId;
 
-      if(usuarioGuardado._airtableId){
-        await updateUsuarioAirtable(usuarioGuardado);
-      } else {
-        const created = await createUsuarioAirtable(usuarioGuardado);
-        usuarioGuardado._airtableId = created.id;
-      }
+   if(usuarioGuardado._airtableId){
+  await deleteUsuarioAirtableById(usuarioGuardado._airtableId);
+
+  const created = await createUsuarioAirtable(usuarioGuardado);
+  usuarioGuardado._airtableId = created.id;
+} else {
+  const created = await createUsuarioAirtable(usuarioGuardado);
+  usuarioGuardado._airtableId = created.id;
+}
 
       users[editIdx] = usuarioGuardado;
       showToast("Usuario actualizado correctamente.","success");
