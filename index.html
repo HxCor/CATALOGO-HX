@@ -1108,6 +1108,16 @@ input, textarea, select { font-family: inherit; }
           <option value="admin">Administrador (acceso total)</option>
         </select>
       </div>
+      <div class="form-group full">
+  <label class="form-label">Empresas permitidas</label>
+  <textarea
+    class="form-input"
+    id="uEmpresasPermitidas"
+    rows="4"
+    placeholder="RFC permitidos, uno por línea. Ej:&#10;VEL0206259IA&#10;FIS231113CR7&#10;OSM211201TJA"
+    style="font-family:'JetBrains Mono',monospace"
+  ></textarea>
+</div>
     </div>
     <div class="drawer-footer">
       <button class="btn btn-secondary" onclick="closeOverlay('userFormOverlay')">Cancelar</button>
@@ -2017,7 +2027,7 @@ async function doDelete(idx){
 function openUserForm(){
   document.getElementById("uEditIdx").value=-1;
   document.getElementById("userFormTitle").textContent="Nuevo Usuario";
-  ["uNombre","uUser","uPass"].forEach(id=>document.getElementById(id).value="");
+  ["uNombre","uUser","uPass","uEmpresasPermitidas"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("uRol").value="viewer";
   openOverlay('userFormOverlay');
 }
@@ -2029,6 +2039,7 @@ function usuarioToAirtableFields(usuario) {
   if (usuario?.user) fields["Usuario"] = usuario.user;
   if (usuario?.pass) fields["Contraseña"] = usuario.pass;
   if (usuario?.rol) fields["Rol"] = usuario.rol;
+  if (usuario?.empresasPermitidas) fields["Empresas permitidas"] = usuario.empresasPermitidas;
 
   return fields;
 }
@@ -2082,11 +2093,12 @@ async function saveUser(){
   const user  =document.getElementById("uUser").value.trim();
   const pass  =document.getElementById("uPass").value.trim();
   const rol   =document.getElementById("uRol").value;
+  const empresasPermitidas = document.getElementById("uEmpresasPermitidas")?.value.trim() || "";
   if(!nombre||!user||!pass){ showToast("Completa todos los campos del usuario.","error"); return; }
   if(pass.length<6){ showToast("La contraseña debe tener mínimo 6 caracteres.","error"); return; }
   const users=getUsers();
   if(users.find(u=>u.user===user)){ showToast("Ese nombre de usuario ya existe.","error"); return; }
- const nuevoUsuario = { nombre, user, pass, rol };
+ const nuevoUsuario = { nombre, user, pass, rol, empresasPermitidas };
 
 try {
   const created = await createUsuarioAirtable(nuevoUsuario);
