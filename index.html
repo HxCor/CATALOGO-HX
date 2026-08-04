@@ -1596,20 +1596,40 @@ function avClass(name) { return 'av' + (name.charCodeAt(0) % 8); }
 
 /* ── LOGIN ── */
 function doLogin() {
-  const u = document.getElementById("loginUser").value.trim();
+  const u = document.getElementById("loginUser").value.trim().toLowerCase();
   const p = document.getElementById("loginPass").value.trim();
-  const found = getUsers().find(x => x.user===u && x.pass===p);
-  if (!found) { document.getElementById("loginError").style.display="block"; return; }
+
+  const users = getUsers();
+
+  console.log("Usuarios disponibles:", users.map(x => ({
+    nombre: x.nombre,
+    user: x.user,
+    pass: x.pass,
+    rol: x.rol
+  })));
+
+  const found = users.find(x =>
+    String(x.user || "").trim().toLowerCase() === u &&
+    String(x.pass || "").trim() === p
+  );
+
+  if (!found) {
+    document.getElementById("loginError").style.display = "block";
+    return;
+  }
+
   currentUser = {
-  ...found,
-  empresasPermitidasLista: (found.empresasPermitidas || "")
-    .split(/[\s,;]+/)
-    .map(rfc => rfc.trim().toUpperCase())
-    .filter(Boolean)
-};
+    ...found,
+    empresasPermitidasLista: (found.empresasPermitidas || "")
+      .split(/[\n,]+/)
+      .map(rfc => rfc.trim().toUpperCase())
+      .filter(Boolean)
+  };
+
   document.getElementById("loginError").style.display = "none";
   document.getElementById("screenLogin").classList.remove("active");
   document.getElementById("screenApp").classList.add("active");
+
   initApp();
 }
 document.getElementById("loginUser").addEventListener("keydown", e=>{ if(e.key==="Enter") document.getElementById("loginPass").focus(); });
