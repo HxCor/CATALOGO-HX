@@ -1848,11 +1848,32 @@ function renderUsersList(){
         <div class="user-row-name">${u.nombre}</div>
         <div class="user-row-user">@${u.user} · ${u.rol==='admin'?'Administrador':'Consultor'}</div>
       </div>
-      <div style="margin-left:auto;display:flex;gap:6px">
-        <span class="badge-role ${u.rol==='admin'?'badge-admin':'badge-viewer'}">${u.rol==='admin'?'Admin':'Viewer'}</span>
-        ${i>0?`<button class="btn btn-danger btn-sm" onclick="deleteUser(${i})">🗑️</button>`:'<span style="font-size:11px;color:var(--ink3)">Protegido</span>'}
-      </div>
+     <div style="margin-left:auto;display:flex;gap:6px">
+  <span class="badge-role ${u.rol==='admin'?'badge-admin':'badge-viewer'}">${u.rol==='admin'?'Admin':'Viewer'}</span>
+  ${
+    i>0
+      ? `<button class="btn btn-secondary btn-sm" onclick="editUser(${i})">✏️</button>
+         <button class="btn btn-danger btn-sm" onclick="deleteUser(${i})">🗑️</button>`
+      : `<span style="font-size:13px;color:#888">Protegido</span>`
+  }
+</div>
     </div>`).join('');
+}
+function editUser(idx){
+  const users = getUsers();
+  const u = users[idx];
+  if (!u) return;
+
+  document.getElementById("uEditIdx").value = idx;
+  document.getElementById("userFormTitle").textContent = "Editar Usuario";
+
+  document.getElementById("uNombre").value = u.nombre || "";
+  document.getElementById("uUser").value = u.user || "";
+  document.getElementById("uPass").value = u.pass || "";
+  document.getElementById("uRol").value = u.rol || "viewer";
+  document.getElementById("uEmpresasPermitidas").value = u.empresasPermitidas || "";
+
+  openOverlay('userFormOverlay');
 }
 function switchAdminTab(tabId,btn){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -2066,13 +2087,16 @@ function usuarioToAirtableFields(usuario) {
   return fields;
 }
 
-async function createUsuarioAirtable(usuario) {
+async function updateUsuarioAirtable(usuario) {
+  if (!usuario?._airtableId) return null;
+
   const response = await fetch(`${HX_API_BASE}/usuarios`, {
-    method: "POST",
+    method: "PUT",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
+      recordId: usuario._airtableId,
       fields: usuarioToAirtableFields(usuario),
     }),
   });
@@ -2080,8 +2104,8 @@ async function createUsuarioAirtable(usuario) {
   const data = await response.json();
 
   if (!response.ok || !data.ok) {
-    console.error("Error creando usuario en Airtable:", data);
-    throw new Error("No se pudo guardar usuario en Airtable");
+    console.error("Error actualizando usuario en Airtable:", data);
+    throw new Error("No se pudo actualizar usuario en Airtable");
   }
 
   return data.data;
@@ -2111,32 +2135,69 @@ async function deleteUsuarioAirtableById(recordId) {
 }
 
 async function saveUser(){
-  const nombre=document.getElementById("uNombre").value.trim();
-  const user  =document.getElementById("uUser").value.trim();
-  const pass  =document.getElementById("uPass").value.trim();
-  const rol   =document.getElementById("uRol").value;
+  const nombre = document.getElementById("uNombre").value.trim();
+  const user = document.getElementById("uUser").value.trim();
+  const pass = document.getElementById("uPass").value.trim();
+  const rol = document.getElementById("uRol").value;
   const empresasPermitidas = document.getElementById("uEmpresasPermitidas")?.value.trim() || "";
-  if(!nombre||!user||!pass){ showToast("Completa todos los campos del usuario.","error"); return; }
-  if(pass.length<6){ showToast("La contraseña debe tener mínimo 6 caracteres.","error"); return; }
-  const users=getUsers();
-  if(users.find(u=>u.user===user)){ showToast("Ese nombre de usuario ya existe.","error"); return; }
- const nuevoUsuario = { nombre, user, pass, rol, empresasPermitidas };
+  const editIdx = parseInt(document.getElementById("uEditIdx").value);
 
-try {
-  const created = await createUsuarioAirtable(nuevoUsuario);
-  nuevoUsuario._airtableId = created.id;
+  if(!nombre || !user || !pass){
+    showToast("Completa todos los campos del usuario.","error");
+    return;
+  }
 
-  users.push(nuevoUsuario);
-  saveUsers(users);
+  if(pass.length < 6){
+    showToast("La contraseña debe tener mínimo 6 caracteres.","error");
+    return;
+  }
 
-  closeOverlay('userFormOverlay');
-  renderUsersList();
-  showToast("Usuario creado correctamente.","success");
+  const users = getUsers();
 
-} catch (error) {
-  console.error(error);
-  showToast("No se pudo guardar usuario en Airtable. Revisa la consola.","error");
-}
+  const existe = users.find((u, idx) => u.user === user && idx !== editIdx);
+  if(existe){
+    showToast("Ese nombre de usuario ya existe.","error");
+    return;
+  }
+
+  const usuarioGuardado = {
+    nombre,
+    user,
+    pass,
+    rol,
+    empresasPermitidas
+  };
+
+  try {
+    if(editIdx >= 0){
+      usuarioGuardado._airtableId = users[editIdx]?._airtableId;
+
+      if(usuarioGuardado._airtableId){
+        await updateUsuarioAirtable(usuarioGuardado);
+      } else {
+        const created = await createUsuarioAirtable(usuarioGuardado);
+        usuarioGuardado._airtableId = created.id;
+      }
+
+      users[editIdx] = usuarioGuardado;
+      showToast("Usuario actualizado correctamente.","success");
+
+    } else {
+      const created = await createUsuarioAirtable(usuarioGuardado);
+      usuarioGuardado._airtableId = created.id;
+
+      users.push(usuarioGuardado);
+      showToast("Usuario creado correctamente.","success");
+    }
+
+    saveUsers(users);
+    closeOverlay('userFormOverlay');
+    renderUsersList();
+
+  } catch (error) {
+    console.error(error);
+    showToast("No se pudo guardar usuario en Airtable. Revisa la consola.","error");
+  }
 }
 async function deleteUser(idx){
   const users = getUsers();
