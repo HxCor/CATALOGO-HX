@@ -2193,7 +2193,20 @@ async function saveUser(){
   }
 }
 function deleteUser(idx){
+  if(!confirm("¿Eliminar este usuario?")) return;
+
   const users = getUsers();
+  const usuario = users[idx];
+
+  if(!usuario){
+    showToast("Usuario no encontrado.","error");
+    return;
+  }
+
+  if(usuario.user === "admin"){
+    showToast("El administrador no se puede eliminar.","error");
+    return;
+  }
 
   users.splice(idx, 1);
   saveUsers(users);
