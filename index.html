@@ -1600,7 +1600,13 @@ function doLogin() {
   const p = document.getElementById("loginPass").value.trim();
   const found = getUsers().find(x => x.user===u && x.pass===p);
   if (!found) { document.getElementById("loginError").style.display="block"; return; }
-  currentUser = found;
+  currentUser = {
+  ...found,
+  empresasPermitidasLista: (found.empresasPermitidas || "")
+    .split(/[\n,]+/)
+    .map(rfc => rfc.trim().toUpperCase())
+    .filter(Boolean)
+};
   document.getElementById("loginError").style.display = "none";
   document.getElementById("screenLogin").classList.remove("active");
   document.getElementById("screenApp").classList.add("active");
@@ -1692,26 +1698,42 @@ function getFiltered(cat, q) {
 
 /* ── STATS ── */
 function updateStats() {
-  const provs = getProveedores();
-  document.getElementById("statTotal").textContent    = provs.length;
-  document.getElementById("statRepse").textContent    = provs.filter(p=>p.repse).length;
-  document.getElementById("statCats").textContent     = [...new Set(provs.map(p=>p.categoria))].length;
+  const provs = aplicarPermisosUsuario(getProveedores());
+
+  document.getElementById("statTotal").textContent = provs.length;
+  document.getElementById("statRepse").textContent = provs.filter(p=>p.repse).length;
+  document.getElementById("statCats").textContent = [...new Set(provs.map(p=>p.categoria))].length;
 }
 function updateCounts() {
-  const cats = getCats(); const q = searchTerm;
-  document.getElementById("sc-all").textContent = getFiltered("all",q).length;
-  document.getElementById("statFiltered").textContent = getFiltered(currentCat,q).length;
+  const cats = getCats(); 
+  const q = searchTerm;
+
+  document.getElementById("sc-all").textContent = aplicarPermisosUsuario(getFiltered("all", q)).length;
+  document.getElementById("statFiltered").textContent = aplicarPermisosUsuario(getFiltered(currentCat, q)).length;
+
   cats.forEach(c=>{
     const el = document.getElementById("sc-"+encodeURIComponent(c.nombre));
-    if(el) el.textContent = getFiltered(c.nombre,q).length;
+    if(el) el.textContent = aplicarPermisosUsuario(getFiltered(c.nombre, q)).length;
   });
 }
+function aplicarPermisosUsuario(lista) {
+  const isAdmin = currentUser && currentUser.rol === "admin";
 
+  if (isAdmin) return lista;
+
+  const permitidas = currentUser?.empresasPermitidasLista || [];
+
+  if (!permitidas.length) return [];
+
+  return lista.filter(p =>
+    permitidas.includes(String(p.rfc || "").trim().toUpperCase())
+  );
+}
 /* ── RENDER CARDS ── */
 function renderCards() {
   const grid = document.getElementById("cardsGrid");
   const empty = document.getElementById("emptyState");
-  const filtered = getFiltered(currentCat, searchTerm);
+  const filtered = aplicarPermisosUsuario(getFiltered(currentCat, searchTerm));
   const provs = getProveedores();
   const isAdmin = currentUser && currentUser.rol==="admin";
   if(!filtered.length){ grid.innerHTML=""; empty.style.display="block"; return; }
