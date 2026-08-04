@@ -1996,7 +1996,7 @@ function confirmDelete(idx){
 async function doDelete(idx){
   const provs=getProveedores();
   const entry = provs[idx];
-  
+
   try {
     await syncBancosAirtable({ ...entry, bancos: [] });
     await deleteProveedorAirtable(entry);
@@ -2021,7 +2021,63 @@ function openUserForm(){
   document.getElementById("uRol").value="viewer";
   openOverlay('userFormOverlay');
 }
-function saveUser(){
+
+function usuarioToAirtableFields(usuario) {
+  const fields = {};
+
+  if (usuario?.nombre) fields["Nombre completo"] = usuario.nombre;
+  if (usuario?.user) fields["Usuario"] = usuario.user;
+  if (usuario?.pass) fields["Contraseña"] = usuario.pass;
+  if (usuario?.rol) fields["Rol"] = usuario.rol;
+
+  return fields;
+}
+
+async function createUsuarioAirtable(usuario) {
+  const response = await fetch(`${HX_API_BASE}/usuarios`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      fields: usuarioToAirtableFields(usuario),
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    console.error("Error creando usuario en Airtable:", data);
+    throw new Error("No se pudo guardar usuario en Airtable");
+  }
+
+  return data.data;
+}
+
+async function deleteUsuarioAirtableById(recordId) {
+  if (!recordId) return null;
+
+  const response = await fetch(`${HX_API_BASE}/usuarios`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      recordId,
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    console.error("Error eliminando usuario en Airtable:", data);
+    throw new Error("No se pudo eliminar usuario en Airtable");
+  }
+
+  return data.data;
+}
+
+async function saveUser(){
   const nombre=document.getElementById("uNombre").value.trim();
   const user  =document.getElementById("uUser").value.trim();
   const pass  =document.getElementById("uPass").value.trim();
@@ -2030,13 +2086,43 @@ function saveUser(){
   if(pass.length<6){ showToast("La contraseña debe tener mínimo 6 caracteres.","error"); return; }
   const users=getUsers();
   if(users.find(u=>u.user===user)){ showToast("Ese nombre de usuario ya existe.","error"); return; }
-  users.push({nombre,user,pass,rol}); saveUsers(users);
-  closeOverlay('userFormOverlay'); renderUsersList();
+ const nuevoUsuario = { nombre, user, pass, rol };
+
+try {
+  const created = await createUsuarioAirtable(nuevoUsuario);
+  nuevoUsuario._airtableId = created.id;
+
+  users.push(nuevoUsuario);
+  saveUsers(users);
+
+  closeOverlay('userFormOverlay');
+  renderUsersList();
   showToast("Usuario creado correctamente.","success");
+
+} catch (error) {
+  console.error(error);
+  showToast("No se pudo guardar usuario en Airtable. Revisa la consola.","error");
 }
-function deleteUser(idx){
-  const users=getUsers(); users.splice(idx,1); saveUsers(users);
-  renderUsersList(); showToast("Usuario eliminado.","success");
+}
+async function deleteUser(idx){
+  const users = getUsers();
+  const usuario = users[idx];
+
+  try {
+    if (usuario?._airtableId) {
+      await deleteUsuarioAirtableById(usuario._airtableId);
+    }
+
+    users.splice(idx,1);
+    saveUsers(users);
+
+    renderUsersList();
+    showToast("Usuario eliminado.","success");
+
+  } catch (error) {
+    console.error(error);
+    showToast("No se pudo eliminar usuario en Airtable. Revisa la consola.","error");
+  }
 }
 
 /* ── TOAST ── */
