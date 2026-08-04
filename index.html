@@ -1460,6 +1460,97 @@ async function deleteProveedorAirtable(entry) {
   return data.data;
 }
 
+function bancoToAirtableFields(banco, entry) {
+  const fields = {};
+
+  if (entry?.nombre) fields["Empresa"] = entry.nombre;
+  if (entry?.rfc) fields["RFC"] = entry.rfc;
+
+  if (banco?.nombre) fields["Nombre de Banco"] = banco.nombre;
+  if (banco?.cuenta) fields["Cuenta"] = banco.cuenta;
+  if (banco?.clabe) fields["CLABE"] = banco.clabe;
+  if (banco?.titular) fields["Titular de la cuenta"] = banco.titular;
+
+  return fields;
+}
+
+async function getBancosAirtable() {
+  const response = await fetch(`${HX_API_BASE}/bancos`);
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    console.error("Error leyendo bancos en Airtable:", data);
+    throw new Error("No se pudieron leer bancos en Airtable");
+  }
+
+  return data.records || data.data?.records || [];
+}
+
+async function createBancoAirtable(banco, entry) {
+  const response = await fetch(`${HX_API_BASE}/bancos`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      fields: bancoToAirtableFields(banco, entry),
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    console.error("Error creando banco en Airtable:", data);
+    throw new Error("No se pudo guardar banco en Airtable");
+  }
+
+  return data.data;
+}
+
+async function deleteBancoAirtableById(recordId) {
+  if (!recordId) return null;
+
+  const response = await fetch(`${HX_API_BASE}/bancos`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      recordId,
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    console.error("Error eliminando banco en Airtable:", data);
+    throw new Error("No se pudo eliminar banco en Airtable");
+  }
+
+  return data.data;
+}
+
+async function syncBancosAirtable(entry) {
+  if (!entry?.rfc) return;
+
+  const bancosActuales = await getBancosAirtable();
+
+  const bancosDelProveedor = bancosActuales.filter(record => {
+    return record.fields?.RFC === entry.rfc;
+  });
+
+  for (const record of bancosDelProveedor) {
+    await deleteBancoAirtableById(record.id);
+  }
+
+  const bancos = Array.isArray(entry.bancos) ? entry.bancos : [];
+
+  for (const banco of bancos) {
+    if (!banco.nombre && !banco.cuenta && !banco.clabe) continue;
+    await createBancoAirtable(banco, entry);
+  }
+}
+
 function getLogoForRfc(rfc) {
   const extras = getLogosExtra();
   return extras[rfc] || LOGOS[rfc] || null;
@@ -1882,6 +1973,7 @@ async function saveForm(){
       showToast("Proveedor agregado al catálogo.","success");
     }
 
+    await syncBancosAirtable(entry);
     saveProveedores(provs);
     closeOverlay('formOverlay');
     updateStats(); updateCounts(); renderSidebar(); renderCards();
