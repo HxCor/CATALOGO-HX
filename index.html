@@ -2176,12 +2176,9 @@ async function saveUser(){
   showToast("Usuario actualizado correctamente.","success");
 
 } else {
-      const created = await createUsuarioAirtable(usuarioGuardado);
-      usuarioGuardado._airtableId = created.id;
-
-      users.push(usuarioGuardado);
-      showToast("Usuario creado correctamente.","success");
-    }
+  users.push(usuarioGuardado);
+  showToast("Usuario creado correctamente.","success");
+}
 
     saveUsers(users);
     closeOverlay('userFormOverlay');
@@ -2189,7 +2186,7 @@ async function saveUser(){
 
   } catch (error) {
     console.error(error);
-    showToast(error.message || "No se pudo guardar usuario en Airtable. Revisa la consola.","error");
+    showToast(error.message || "No se pudo guardar usuario. Revisa la consola.","error");
   }
 }
 function deleteUser(idx){
