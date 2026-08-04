@@ -2192,25 +2192,14 @@ async function saveUser(){
     showToast(error.message || "No se pudo guardar usuario en Airtable. Revisa la consola.","error");
   }
 }
-async function deleteUser(idx){
+function deleteUser(idx){
   const users = getUsers();
-  const usuario = users[idx];
 
-  try {
-    if (usuario?._airtableId) {
-      await deleteUsuarioAirtableById(usuario._airtableId);
-    }
+  users.splice(idx, 1);
+  saveUsers(users);
 
-    users.splice(idx,1);
-    saveUsers(users);
-
-    renderUsersList();
-    showToast("Usuario eliminado.","success");
-
-  } catch (error) {
-    console.error(error);
-    showToast("No se pudo eliminar usuario en Airtable. Revisa la consola.","error");
-  }
+  renderUsersList();
+  showToast("Usuario eliminado.","success");
 }
 
 /* ── TOAST ── */
