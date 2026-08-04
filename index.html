@@ -2199,7 +2199,7 @@ async function saveUser(){
 
   } catch (error) {
     console.error(error);
-    showToast("No se pudo guardar usuario en Airtable. Revisa la consola.","error");
+    showToast(error.message || "No se pudo guardar usuario en Airtable. Revisa la consola.","error");
   }
 }
 async function deleteUser(idx){
