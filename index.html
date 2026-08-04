@@ -1603,7 +1603,7 @@ function doLogin() {
   currentUser = {
   ...found,
   empresasPermitidasLista: (found.empresasPermitidas || "")
-    .split(/[\n,]+/)
+    .split(/[\s,;]+/)
     .map(rfc => rfc.trim().toUpperCase())
     .filter(Boolean)
 };
