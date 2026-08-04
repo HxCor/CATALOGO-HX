@@ -2134,6 +2134,10 @@ async function deleteUsuarioAirtableById(recordId) {
   return data.data;
 }
 
+async function createUsuarioAirtable(usuario){
+  return { id: usuario?._airtableId || null };
+}
+
 async function saveUser(){
   const nombre = document.getElementById("uNombre").value.trim();
   const user = document.getElementById("uUser").value.trim();
