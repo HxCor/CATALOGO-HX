@@ -1908,7 +1908,16 @@ document.querySelectorAll('.overlay').forEach(o=>{
 });
 
 /* ── ADMIN PANEL ── */
-function openAdminPanel(){ renderAdminTable(); renderUsersList(); openOverlay('adminOverlay'); }
+function openAdminPanel(){
+  if (!currentUser || currentUser.rol !== "admin") {
+    showToast("Acceso restringido solo para administradores.", "error");
+    return;
+  }
+
+  renderAdminTable();
+  renderUsersList();
+  openOverlay('adminOverlay');
+}
 function renderAdminTable(){
   const provs = getProveedores();
   document.getElementById("adminTableBody").innerHTML = provs.map((p,i)=>`
