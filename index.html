@@ -1638,6 +1638,15 @@ const USERS_INITIAL = [
 
 /* ── STATE ── */
 let currentUser     = null;
+
+function requireAdmin(){
+  if (!currentUser || currentUser.rol !== "admin") {
+    showToast("Acción restringida solo para administradores.","error");
+    return false;
+  }
+  return true;
+}
+
 let currentCat      = "all";
 let searchTerm      = "";
 let pendingLogoB64  = null;
