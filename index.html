@@ -1401,9 +1401,11 @@ async function loadUsersFromAirtable(){
       return;
     }
 
-    const records = Array.isArray(data.data)
-      ? data.data
-      : (data.data?.records || []);
+    const records = Array.isArray(data.records)
+  ? data.records
+  : Array.isArray(data.data)
+    ? data.data
+    : (data.data?.records || []);
 
     const airtableUsers = records
       .map(usuarioFromAirtableRecord)
