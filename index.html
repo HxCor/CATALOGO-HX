@@ -2155,7 +2155,24 @@ async function deleteUsuarioAirtableById(recordId) {
 }
 
 async function createUsuarioAirtable(usuario){
-  return { id: usuario?._airtableId || null };
+  const response = await fetch(`${HX_API_BASE}/usuarios`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      fields: usuarioToAirtableFields(usuario),
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    console.error("Error creando usuario en Airtable:", data);
+    throw new Error("No se pudo guardar usuario en Airtable");
+  }
+
+  return data.data;
 }
 
 async function saveUser(){
