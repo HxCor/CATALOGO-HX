@@ -1484,7 +1484,7 @@ async function createProveedorAirtable(entry) {
     throw new Error("No se pudo guardar en Airtable");
   }
 
-  return data.data;
+  return data.data || data.record || data;
 }
 
 async function updateProveedorAirtable(entry) {
@@ -1508,7 +1508,7 @@ async function updateProveedorAirtable(entry) {
     throw new Error("No se pudo actualizar en Airtable");
   }
 
-  return data.data;
+  return data.data || data.record || data;
 }
 
 async function deleteProveedorAirtable(entry) {
@@ -1531,7 +1531,7 @@ async function deleteProveedorAirtable(entry) {
     throw new Error("No se pudo eliminar en Airtable");
   }
 
-  return data.data;
+  return data.data || data.record || data;
 }
 
 function bancoToAirtableFields(banco, entry) {
@@ -1578,7 +1578,7 @@ async function createBancoAirtable(banco, entry) {
     throw new Error("No se pudo guardar banco en Airtable");
   }
 
-  return data.data;
+  return data.data || data.record || data;
 }
 
 async function deleteBancoAirtableById(recordId) {
@@ -1601,7 +1601,7 @@ async function deleteBancoAirtableById(recordId) {
     throw new Error("No se pudo eliminar banco en Airtable");
   }
 
-  return data.data;
+  return data.data || data.record || data;
 }
 
 async function syncBancosAirtable(entry) {
