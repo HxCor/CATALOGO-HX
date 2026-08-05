@@ -1026,6 +1026,123 @@ button[onclick="openAddForm()"]{
   margin-top: 8px !important;
 }
 
+/* =========================================================
+   FASE 7 — CARDS CENTRADAS V4
+========================================================= */
+
+/* Encabezado de la tarjeta: logo + nombre/RFC más balanceado */
+.pcard-head{
+  display: grid !important;
+  grid-template-columns: 72px 1fr auto !important;
+  align-items: center !important;
+  gap: 18px !important;
+  padding: 24px 26px !important;
+}
+
+/* Logo centrado dentro de su cajita */
+.pcard-logo,
+.logo-wrap,
+.provider-logo{
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Nombre y RFC centrados verticalmente */
+.pcard-title,
+.pcard-info,
+.provider-info{
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+/* Cuerpo de servicios más centrado */
+.pcard-body{
+  padding: 24px 30px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+}
+
+/* Badge de categoría más alineado */
+.pcard-body .cat-badge,
+.cat-badge{
+  align-self: flex-start !important;
+  margin-bottom: 16px !important;
+}
+
+/* Lista de servicios mejor alineada */
+.pcard-body ul,
+.pcard-services,
+.provider-services{
+  margin: 0 !important;
+  padding-left: 18px !important;
+  line-height: 1.45 !important;
+}
+
+/* Bancos centrados */
+.pcard-banks{
+  min-height: 70px !important;
+  padding: 16px 26px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  flex-wrap: wrap !important;
+  gap: 10px !important;
+}
+
+/* Cada banco más parejo */
+.bank-pill,
+.bank-chip,
+.pcard-banks span{
+  min-height: 34px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 16px !important;
+  border-radius: 10px !important;
+  font-weight: 800 !important;
+}
+
+/* Acciones centradas */
+.pcard-actions{
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 16px !important;
+  padding: 18px 30px 26px !important;
+  align-items: center !important;
+}
+
+/* Botones de acción centrados */
+.pcard-actions .btn,
+.pcard-actions button{
+  width: 100% !important;
+  min-height: 44px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Altura más uniforme para cards */
+.pcard,
+.card,
+.provider-card,
+#cardsGrid > div{
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Empuja bancos y botones hacia abajo para que se vean parejos */
+.pcard-body{
+  flex: 1 !important;
+}
+
+.pcard-banks{
+  margin-top: auto !important;
+}
+
 </style>
 </head>
 <body>
