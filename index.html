@@ -1027,120 +1027,94 @@ button[onclick="openAddForm()"]{
 }
 
 /* =========================================================
-   FASE 7 — CARDS CENTRADAS V4
+   FASE 7 — CARDS CENTRADO FINO V5
 ========================================================= */
 
-/* Encabezado de la tarjeta: logo + nombre/RFC más balanceado */
+/* Tarjetas más balanceadas por dentro */
+.pcard{
+  min-height: 390px !important;
+}
+
+/* Header: mejor alineación del logo, nombre, RFC y REPSE */
 .pcard-head{
-  display: grid !important;
   grid-template-columns: 72px 1fr auto !important;
-  align-items: center !important;
-  gap: 18px !important;
-  padding: 24px 26px !important;
+  padding: 26px 34px !important;
+  gap: 20px !important;
 }
 
-/* Logo centrado dentro de su cajita */
-.pcard-logo,
-.logo-wrap,
-.provider-logo{
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-/* Nombre y RFC centrados verticalmente */
-.pcard-title,
-.pcard-info,
-.provider-info{
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: center !important;
-  gap: 6px !important;
-}
-
-/* Cuerpo de servicios más centrado */
+/* Cuerpo de servicios centrado visualmente */
 .pcard-body{
-  padding: 24px 30px !important;
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: center !important;
+  padding: 26px 42px 24px !important;
 }
 
-/* Badge de categoría más alineado */
+/* Categoría centrada respecto al contenido */
 .pcard-body .cat-badge,
 .cat-badge{
-  align-self: flex-start !important;
-  margin-bottom: 16px !important;
+  margin-left: 0 !important;
+  margin-bottom: 18px !important;
 }
 
-/* Lista de servicios mejor alineada */
+/* Lista de servicios con mejor respiración */
 .pcard-body ul,
-.pcard-services,
-.provider-services{
-  margin: 0 !important;
-  padding-left: 18px !important;
-  line-height: 1.45 !important;
+.pcard-services{
+  padding-left: 20px !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  max-width: 92% !important;
 }
 
-/* Bancos centrados */
+/* Bancos centrados dentro de su franja */
 .pcard-banks{
-  min-height: 70px !important;
-  padding: 16px 26px !important;
-  display: flex !important;
-  align-items: center !important;
+  min-height: 72px !important;
+  padding: 16px 34px !important;
   justify-content: flex-start !important;
-  flex-wrap: wrap !important;
-  gap: 10px !important;
+  align-items: center !important;
+  gap: 12px !important;
 }
 
-/* Cada banco más parejo */
+/* Banco individual más limpio y centrado */
+.pcard-banks span,
 .bank-pill,
-.bank-chip,
-.pcard-banks span{
-  min-height: 34px !important;
+.bank-chip{
+  min-width: auto !important;
+  min-height: 36px !important;
+  padding: 0 18px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  padding: 0 16px !important;
-  border-radius: 10px !important;
+}
+
+/* Botones centrados y con mejor tamaño */
+.pcard-actions{
+  padding: 22px 42px 30px !important;
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 20px !important;
+}
+
+/* Botón editar/eliminar más premium */
+.pcard-actions .btn,
+.pcard-actions button{
+  min-height: 48px !important;
+  border-radius: 14px !important;
+  font-size: 16px !important;
   font-weight: 800 !important;
 }
 
-/* Acciones centradas */
-.pcard-actions{
-  display: grid !important;
-  grid-template-columns: 1fr 1fr !important;
-  gap: 16px !important;
-  padding: 18px 30px 26px !important;
-  align-items: center !important;
+/* Quitar borde verde demasiado marcado cuando una card queda enfocada */
+.pcard:focus,
+.pcard:focus-visible,
+.card:focus,
+.card:focus-visible,
+#cardsGrid > div:focus,
+#cardsGrid > div:focus-visible{
+  outline: none !important;
+  border-color: var(--premium-border) !important;
 }
 
-/* Botones de acción centrados */
-.pcard-actions .btn,
-.pcard-actions button{
-  width: 100% !important;
-  min-height: 44px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-/* Altura más uniforme para cards */
-.pcard,
-.card,
-.provider-card,
-#cardsGrid > div{
-  display: flex !important;
-  flex-direction: column !important;
-}
-
-/* Empuja bancos y botones hacia abajo para que se vean parejos */
-.pcard-body{
-  flex: 1 !important;
-}
-
-.pcard-banks{
-  margin-top: auto !important;
+/* Cuando pasas el mouse, que sea sutil */
+.pcard:hover{
+  border-color: rgba(18,107,59,.20) !important;
 }
 
 </style>
