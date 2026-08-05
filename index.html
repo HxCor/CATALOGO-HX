@@ -2268,25 +2268,35 @@ async function saveUser(){
   };
 
   try {
-   if(editIdx >= 0){
-  usuarioGuardado._airtableId = users[editIdx]?._airtableId;
+  if(editIdx >= 0){
+    usuarioGuardado._airtableId = users[editIdx]?._airtableId;
 
-  users[editIdx] = usuarioGuardado;
-  showToast("Usuario actualizado correctamente.","success");
+    if(usuarioGuardado._airtableId){
+      await updateUsuarioAirtable(usuarioGuardado);
+    } else {
+      const created = await createUsuarioAirtable(usuarioGuardado);
+      usuarioGuardado._airtableId = created.id;
+    }
 
-} else {
-  users.push(usuarioGuardado);
-  showToast("Usuario creado correctamente.","success");
-}
+    users[editIdx] = usuarioGuardado;
+    showToast("Usuario actualizado correctamente.","success");
 
-    saveUsers(users);
-    closeOverlay('userFormOverlay');
-    renderUsersList();
+  } else {
+    const created = await createUsuarioAirtable(usuarioGuardado);
+    usuarioGuardado._airtableId = created.id;
 
-  } catch (error) {
-    console.error(error);
-    showToast(error.message || "No se pudo guardar usuario. Revisa la consola.","error");
+    users.push(usuarioGuardado);
+    showToast("Usuario creado correctamente.","success");
   }
+
+  saveUsers(users);
+  closeOverlay('userFormOverlay');
+  renderUsersList();
+
+} catch (error) {
+  console.error(error);
+  showToast(error.message || "No se pudo guardar usuario en Airtable. Revisa la consola.","error");
+}
 }
 async function deleteUser(idx){
   if(!confirm("¿Eliminar este usuario?")) return;
