@@ -2052,13 +2052,21 @@ function aplicarPermisosUsuario(lista) {
 
   if (isAdmin) return lista;
 
-  const permitidas = currentUser?.empresasPermitidasLista || [];
+  const permitidas = [
+  ...(currentUser?.empresasPermitidasLista || []),
+  ...String(currentUser?.empresasPermitidas || "")
+    .split(/\n|,|;/)
+]
+  .map(r => String(r || "").trim().toUpperCase())
+  .filter(Boolean);
 
-  if (!permitidas.length) return [];
+const permitidasUnicas = [...new Set(permitidas)];
 
-  return lista.filter(p =>
-    permitidas.includes(String(p.rfc || "").trim().toUpperCase())
-  );
+if (!permitidasUnicas.length) return [];
+
+return lista.filter(p =>
+  permitidasUnicas.includes(String(p.rfc || "").trim().toUpperCase())
+);
 }
 /* ── RENDER CARDS ── */
 function renderCards() {
