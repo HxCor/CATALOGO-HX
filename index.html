@@ -1393,7 +1393,7 @@ function usuarioFromAirtableRecord(record){
 
 async function loadUsersFromAirtable(){
   try {
-    const response = await fetch(`${HX_API_BASE}/usuarios`);
+    const response = await fetch(`${HX_API_BASE}/usuarios?v=${Date.now()}`);
     const data = await response.json();
 
     if (!response.ok || !data.ok) {
@@ -1402,8 +1402,9 @@ async function loadUsersFromAirtable(){
     }
 
     const records = Array.isArray(data.data)
-  ? data.data
-  : (data.data?.records || []);
+      ? data.data
+      : (data.data?.records || []);
+
     const airtableUsers = records
       .map(usuarioFromAirtableRecord)
       .filter(u => u.user);
@@ -1412,7 +1413,9 @@ async function loadUsersFromAirtable(){
     const merged = [...baseUsers];
 
     airtableUsers.forEach(u => {
-      const idx = merged.findIndex(x => x.user === u.user);
+      const idx = merged.findIndex(x =>
+        String(x.user || "").trim().toLowerCase() === String(u.user || "").trim().toLowerCase()
+      );
 
       if (idx >= 0) {
         merged[idx] = {
@@ -1426,11 +1429,12 @@ async function loadUsersFromAirtable(){
 
     saveUsers(merged);
 
+    console.log("Usuarios cargados desde Airtable:", merged);
+
     if (typeof renderUsersList === "function") {
       renderUsersList();
     }
 
-    console.log("Usuarios cargados desde Airtable:", merged);
   } catch (error) {
     console.error("Error cargando usuarios desde Airtable:", error);
   }
