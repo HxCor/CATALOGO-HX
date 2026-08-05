@@ -1955,6 +1955,8 @@ function renderUsersList(){
     </div>`).join('');
 }
 function editUser(idx){
+  if (!requireAdmin()) return;
+
   const users = getUsers();
   const u = users[idx];
   if (!u) return;
@@ -2020,6 +2022,8 @@ function promptNewCategory(){
 /* ── ADD / EDIT FORM ── */
 let bankCount = 0;
 function openAddForm(){
+  if (!requireAdmin()) return;
+
   document.getElementById("fEditIdx").value="-1";
   document.getElementById("formTitle").textContent="Nuevo Proveedor";
   document.getElementById("fNombre").value="";
@@ -2035,7 +2039,11 @@ function openAddForm(){
   openOverlay('formOverlay');
 }
 function openEditForm(idx){
+  if (!requireAdmin()) return;
+
   const p = getProveedores()[idx];
+  if (!p) return;
+
   document.getElementById("fEditIdx").value=idx;
   document.getElementById("formTitle").textContent="Editar Proveedor";
   document.getElementById("fNombre").value=p.nombre;
@@ -2081,6 +2089,8 @@ function addBankField(data){
   document.getElementById("banksContainer").appendChild(el);
 }
 async function saveForm(){
+  if (!requireAdmin()) return;
+
   const nombre=document.getElementById("fNombre").value.trim();
   const rfc   =document.getElementById("fRfc").value.trim();
   const cat   =document.getElementById("fCat").value;
@@ -2136,6 +2146,8 @@ async function saveForm(){
 
 /* ── DELETE ── */
 function confirmDelete(idx){
+  if (!requireAdmin()) return;
+
   const provs=getProveedores();
   document.getElementById("confirmTitle").textContent="¿Eliminar este proveedor?";
   document.getElementById("confirmMsg").textContent=`"${provs[idx].nombre}" será eliminado del catálogo.`;
@@ -2143,6 +2155,8 @@ function confirmDelete(idx){
   openOverlay('confirmOverlay');
 }
 async function doDelete(idx){
+  if (!requireAdmin()) return;
+
   const provs=getProveedores();
   const entry = provs[idx];
 
@@ -2164,6 +2178,8 @@ async function doDelete(idx){
 
 /* ── USER MANAGEMENT ── */
 function openUserForm(){
+  if (!requireAdmin()) return;
+
   document.getElementById("uEditIdx").value=-1;
   document.getElementById("userFormTitle").textContent="Nuevo Usuario";
   ["uNombre","uUser","uPass","uEmpresasPermitidas"].forEach(id=>document.getElementById(id).value="");
@@ -2252,6 +2268,7 @@ async function createUsuarioAirtable(usuario){
 }
 
 async function saveUser(){
+  if (!requireAdmin()) return;
   const nombre = document.getElementById("uNombre").value.trim();
   const user = document.getElementById("uUser").value.trim();
   const passInput = document.getElementById("uPass").value.trim();
@@ -2317,6 +2334,8 @@ if(passInput && passInput.length < 6){
 }
 }
 async function deleteUser(idx){
+  if (!requireAdmin()) return;
+  
   if(!confirm("¿Eliminar este usuario?")) return;
 
   const users = getUsers();
