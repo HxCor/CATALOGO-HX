@@ -2288,7 +2288,7 @@ async function saveUser(){
     showToast(error.message || "No se pudo guardar usuario. Revisa la consola.","error");
   }
 }
-function deleteUser(idx){
+async function deleteUser(idx){
   if(!confirm("¿Eliminar este usuario?")) return;
 
   const users = getUsers();
@@ -2304,11 +2304,36 @@ function deleteUser(idx){
     return;
   }
 
-  users.splice(idx, 1);
-  saveUsers(users);
+  try {
+    if(usuario._airtableId){
+      const response = await fetch(`${HX_API_BASE}/usuarios`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recordId: usuario._airtableId,
+        }),
+      });
 
-  renderUsersList();
-  showToast("Usuario eliminado.","success");
+      const data = await response.json();
+
+      if(!response.ok || !data.ok){
+        console.error("Error eliminando usuario en Airtable:", data);
+        throw new Error("No se pudo eliminar usuario en Airtable");
+      }
+    }
+
+    users.splice(idx, 1);
+    saveUsers(users);
+
+    renderUsersList();
+    showToast("Usuario eliminado correctamente.","success");
+
+  } catch(error) {
+    console.error(error);
+    showToast(error.message || "No se pudo eliminar usuario.","error");
+  }
 }
 
 /* ── TOAST ── */
