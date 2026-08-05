@@ -1695,10 +1695,18 @@ async function doLogin() {
   initApp();
 }
 
-document.getElementById("loginUser").addEventListener("keydown", e=>{ if(e.key==="Enter") document.getElementById("loginPass").focus(); });
-document.getElementById("loginPass").addEventListener("keydown", e=>{ if(e.key==="Enter") doLogin(); });
+document.getElementById("loginUser").addEventListener("keydown", e=>{
+  if(e.key==="Enter") document.getElementById("loginPass").focus();
+});
+document.getElementById("loginPass").addEventListener("keydown", e=>{
+  if(e.key==="Enter") doLogin();
+});
 
-loadUsersFromAirtable();
+loadUsersFromAirtable().then(() => {
+  if (typeof renderUsersList === "function") {
+    renderUsersList();
+  }
+});
 
 function doLogout() {
   currentUser = null;
