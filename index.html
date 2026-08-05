@@ -1955,7 +1955,8 @@ function editUser(idx){
 
   document.getElementById("uNombre").value = u.nombre || "";
   document.getElementById("uUser").value = u.user || "";
-  document.getElementById("uPass").value = u.pass || "";
+  document.getElementById("uPass").value = "";
+  document.getElementById("uPass").placeholder = "Dejar vacío para conservar contraseña actual";
   document.getElementById("uRol").value = u.rol || "viewer";
   document.getElementById("uEmpresasPermitidas").value = u.empresasPermitidas || "";
 
@@ -2244,23 +2245,22 @@ async function createUsuarioAirtable(usuario){
 async function saveUser(){
   const nombre = document.getElementById("uNombre").value.trim();
   const user = document.getElementById("uUser").value.trim();
-  const pass = document.getElementById("uPass").value.trim();
+  const passInput = document.getElementById("uPass").value.trim();
   const rol = document.getElementById("uRol").value;
   const empresasPermitidas = document.getElementById("uEmpresasPermitidas")?.value.trim() || "";
   const editIdx = parseInt(document.getElementById("uEditIdx").value);
-
-  if(!nombre || !user || !pass){
-    showToast("Completa todos los campos del usuario.","error");
-    return;
-  }
-
-  if(pass.length < 6){
-    showToast("La contraseña debe tener mínimo 6 caracteres.","error");
-    return;
-  }
-
   const users = getUsers();
+  const pass = passInput || (editIdx >= 0 ? users[editIdx]?.pass : "");
 
+  if(!nombre || !user || (!passInput && editIdx < 0)){
+  showToast("Completa todos los campos del usuario.","error");
+  return;
+}
+
+if(passInput && passInput.length < 6){
+  showToast("La contraseña debe tener mínimo 6 caracteres.","error");
+  return;
+}
   const existe = users.find((u, idx) => u.user === user && idx !== editIdx);
   if(existe){
     showToast("Ese nombre de usuario ya existe.","error");
