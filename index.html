@@ -1378,6 +1378,62 @@ function saveLogosExtra(obj) { localStorage.setItem(LS_LOGOS, JSON.stringify(obj
 
 const HX_API_BASE = "https://catalogo-hx-backend.armando-avila.workers.dev";
 
+function usuarioFromAirtableRecord(record){
+  const f = record.fields || {};
+
+  return {
+    nombre: f["Nombre completo"] || "",
+    user: f["Usuario"] || "",
+    pass: f["Contraseña"] || "",
+    rol: f["Rol"] || "viewer",
+    empresasPermitidas: f["Empresas permitidas"] || "",
+    _airtableId: record.id
+  };
+}
+
+async function loadUsersFromAirtable(){
+  try {
+    const response = await fetch(`${HX_API_BASE}/usuarios`);
+    const data = await response.json();
+
+    if (!response.ok || !data.ok) {
+      console.error("No se pudieron cargar usuarios desde Airtable:", data);
+      return;
+    }
+
+    const records = data.data.records || [];
+    const airtableUsers = records
+      .map(usuarioFromAirtableRecord)
+      .filter(u => u.user);
+
+    const baseUsers = JSON.parse(JSON.stringify(USERS_INITIAL));
+    const merged = [...baseUsers];
+
+    airtableUsers.forEach(u => {
+      const idx = merged.findIndex(x => x.user === u.user);
+
+      if (idx >= 0) {
+        merged[idx] = {
+          ...merged[idx],
+          ...u
+        };
+      } else {
+        merged.push(u);
+      }
+    });
+
+    saveUsers(merged);
+
+    if (typeof renderUsersList === "function") {
+      renderUsersList();
+    }
+
+    console.log("Usuarios cargados desde Airtable:", merged);
+  } catch (error) {
+    console.error("Error cargando usuarios desde Airtable:", error);
+  }
+}
+
 function proveedorToAirtableFields(entry) {
   const fields = {};
 
@@ -1634,6 +1690,8 @@ function doLogin() {
 }
 document.getElementById("loginUser").addEventListener("keydown", e=>{ if(e.key==="Enter") document.getElementById("loginPass").focus(); });
 document.getElementById("loginPass").addEventListener("keydown", e=>{ if(e.key==="Enter") doLogin(); });
+
+loadUsersFromAirtable();
 
 function doLogout() {
   currentUser = null;
