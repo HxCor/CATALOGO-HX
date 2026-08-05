@@ -1667,15 +1667,6 @@ async function doLogin() {
 
   const users = getUsers();
 
-  console.log("Intentando login con:", u, p);
-  console.log("Usuarios disponibles:", users.map(x => ({
-    nombre: x.nombre,
-    user: x.user,
-    pass: x.pass,
-    rol: x.rol,
-    empresasPermitidas: x.empresasPermitidas
-  })));
-
   const found = users.find(x =>
     String(x.user || "").trim().toLowerCase() === u &&
     String(x.pass || "").trim() === p
