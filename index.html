@@ -790,6 +790,240 @@ input, textarea, select { font-family: inherit; }
   padding: 5px;
   image-rendering: -webkit-optimize-contrast;
 }
+
+/* =========================================================
+   FASE 7 — PREMIUM UI V1
+   Solo mejora visual. No toca lógica ni Airtable.
+========================================================= */
+
+:root{
+  --premium-bg:#f7f6f2;
+  --premium-card:#ffffff;
+  --premium-border:rgba(28,25,20,.10);
+  --premium-shadow:0 14px 34px rgba(20,18,14,.08);
+  --premium-shadow-soft:0 8px 22px rgba(20,18,14,.06);
+  --premium-green:#126b3b;
+  --premium-green-dark:#0d4f2c;
+  --premium-gold:#b8870b;
+  --premium-text:#191919;
+  --premium-muted:#8b8680;
+}
+
+body{
+  background:
+    radial-gradient(circle at top left, rgba(18,107,59,.06), transparent 34%),
+    linear-gradient(180deg,#fbfaf7 0%,var(--premium-bg) 100%);
+}
+
+.topbar{
+  background:rgba(255,255,255,.94)!important;
+  backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--premium-border)!important;
+  box-shadow:0 8px 24px rgba(20,18,14,.05);
+}
+
+#searchInput{
+  border-radius:14px!important;
+  border:1px solid var(--premium-border)!important;
+  background:#f3f1ec!important;
+  transition:all .18s ease;
+}
+
+#searchInput:focus{
+  background:#fff!important;
+  border-color:rgba(18,107,59,.35)!important;
+  box-shadow:0 0 0 4px rgba(18,107,59,.08)!important;
+}
+
+.sidebar{
+  background:rgba(255,255,255,.76)!important;
+  border-right:1px solid var(--premium-border)!important;
+}
+
+.side-item,
+.cat-item,
+.sidebar button{
+  border-radius:14px!important;
+  transition:all .18s ease;
+}
+
+.side-item:hover,
+.cat-item:hover,
+.sidebar button:hover{
+  transform:translateX(2px);
+  background:rgba(18,107,59,.07)!important;
+}
+
+.stats-row > *,
+.stat-card,
+.kpi-card{
+  border-radius:18px!important;
+  background:var(--premium-card)!important;
+  border:1px solid var(--premium-border)!important;
+  box-shadow:var(--premium-shadow-soft)!important;
+}
+
+.cards-grid,
+#cardsGrid{
+  gap:24px!important;
+}
+
+.pcard,
+.card,
+.provider-card,
+#cardsGrid > div{
+  border-radius:20px!important;
+  background:var(--premium-card)!important;
+  border:1px solid var(--premium-border)!important;
+  box-shadow:var(--premium-shadow-soft)!important;
+  overflow:hidden;
+  transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.pcard:hover,
+.card:hover,
+.provider-card:hover,
+#cardsGrid > div:hover{
+  transform:translateY(-3px);
+  box-shadow:var(--premium-shadow)!important;
+  border-color:rgba(18,107,59,.18)!important;
+}
+
+.pcard-head,
+.card-header,
+.provider-header{
+  background:linear-gradient(180deg,#ffffff 0%,#faf8f3 100%)!important;
+  border-bottom:1px solid var(--premium-border)!important;
+}
+
+.pcard-name,
+.card h3,
+.provider-card h3,
+.card-title{
+  color:var(--premium-text)!important;
+  letter-spacing:-.02em;
+}
+
+.pcard-rfc,
+.rfc,
+.card-rfc,
+.provider-rfc{
+  color:var(--premium-green)!important;
+  font-weight:700!important;
+  letter-spacing:.03em;
+}
+
+.cat-badge,
+.repse-pill,
+.badge-role,
+.badge-admin,
+.badge-viewer{
+  border-radius:999px!important;
+  font-weight:800!important;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.btn,
+button{
+  border-radius:13px!important;
+  transition:transform .16s ease, box-shadow .16s ease, background .16s ease;
+}
+
+.btn:hover,
+button:hover{
+  transform:translateY(-1px);
+}
+
+.btn-primary,
+#adminAddBtn,
+button[onclick="openAddForm()"]{
+  background:linear-gradient(180deg,#177a45 0%,var(--premium-green-dark) 100%)!important;
+  border:none!important;
+  box-shadow:0 10px 22px rgba(18,107,59,.20)!important;
+}
+
+.btn-secondary{
+  background:#eef3fb!important;
+  color:#14325f!important;
+  border:1px solid rgba(20,50,95,.08)!important;
+}
+
+.btn-danger{
+  background:#fff0ed!important;
+  color:#b42318!important;
+  border:1px solid rgba(180,35,24,.10)!important;
+}
+
+.drawer,
+.modal,
+.overlay .drawer,
+.admin-panel,
+.form-panel{
+  border-radius:22px!important;
+  border:1px solid var(--premium-border)!important;
+  box-shadow:0 24px 70px rgba(0,0,0,.20)!important;
+}
+
+.form-input,
+.form-select,
+textarea,
+input,
+select{
+  border-radius:13px!important;
+}
+
+input:focus,
+textarea:focus,
+select:focus{
+  border-color:rgba(18,107,59,.38)!important;
+  box-shadow:0 0 0 4px rgba(18,107,59,.09)!important;
+}
+
+.empty-state,
+#emptyState{
+  background:transparent!important;
+  color:var(--premium-muted)!important;
+}
+
+@media (max-width:900px){
+  .app-body{
+    grid-template-columns:1fr!important;
+  }
+
+  .sidebar{
+    position:relative!important;
+    width:100%!important;
+    border-right:none!important;
+    border-bottom:1px solid var(--premium-border)!important;
+  }
+
+  .stats-row{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+
+  .cards-grid,
+  #cardsGrid{
+    grid-template-columns:1fr!important;
+  }
+}
+
+@media (max-width:560px){
+  .topbar{
+    gap:10px!important;
+    padding:12px!important;
+  }
+
+  .stats-row{
+    grid-template-columns:1fr!important;
+  }
+
+  .main,
+  #mainContent{
+    padding:18px!important;
+  }
+}
+
 </style>
 </head>
 <body>
