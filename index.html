@@ -957,10 +957,11 @@ button[onclick="openAddForm()"]{
 .user-permission-tools .btn,
 .user-permission-tools .form-select{
   width: 100%;
-  min-height: 46px;
-  border-radius: 14px !important;
-  font-weight: 800;
+  min-height: 50px;
+  border-radius: 16px !important;
+  font-weight: 850;
   font-size: 14px;
+  letter-spacing: .02em;
 }
 
 .user-permission-tools .btn{
@@ -969,12 +970,44 @@ button[onclick="openAddForm()"]{
   justify-content: center;
   text-align: center;
   white-space: normal;
-  padding: 10px 14px;
+  padding: 12px 16px;
+  color: #fff !important;
+  border: none !important;
+  background: linear-gradient(135deg, #177a45 0%, #0d4f2c 100%) !important;
+  box-shadow: 0 12px 24px rgba(18,107,59,.22), inset 0 1px 0 rgba(255,255,255,.22);
+  position: relative;
+  overflow: hidden;
+}
+
+.user-permission-tools .btn::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,.22) 45%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform .45s ease;
+}
+
+.user-permission-tools .btn:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 16px 30px rgba(18,107,59,.28), inset 0 1px 0 rgba(255,255,255,.25);
+}
+
+.user-permission-tools .btn:hover::before{
+  transform: translateX(120%);
 }
 
 .user-permission-tools .form-select{
-  padding: 10px 14px;
-  background-color: #f7f6f2;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f6f2 100%) !important;
+  border: 1px solid rgba(18,107,59,.18) !important;
+  color: #14325f;
+  box-shadow: 0 8px 18px rgba(20,18,14,.06), inset 0 1px 0 rgba(255,255,255,.9);
+}
+
+.user-permission-tools .form-select:focus{
+  border-color: rgba(18,107,59,.45) !important;
+  box-shadow: 0 0 0 4px rgba(18,107,59,.10), 0 10px 22px rgba(20,18,14,.08);
 }
 
 @media (max-width: 700px){
