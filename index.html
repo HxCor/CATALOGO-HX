@@ -1702,11 +1702,7 @@ document.getElementById("loginPass").addEventListener("keydown", e=>{
   if(e.key==="Enter") doLogin();
 });
 
-loadUsersFromAirtable().then(() => {
-  if (typeof renderUsersList === "function") {
-    renderUsersList();
-  }
-});
+loadUsersFromAirtable();
 
 function doLogout() {
   currentUser = null;
