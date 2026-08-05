@@ -2248,11 +2248,12 @@ async function saveUser(){
   const passInput = document.getElementById("uPass").value.trim();
   const rol = document.getElementById("uRol").value;
   const empresasPermitidas = document.getElementById("uEmpresasPermitidas")?.value.trim() || "";
-  const editIdx = parseInt(document.getElementById("uEditIdx").value);
+  const editIdxRaw = document.getElementById("uEditIdx").value;
+  const editIdx = editIdxRaw === "" ? -1 : parseInt(editIdxRaw, 10);
   const users = getUsers();
-  const pass = passInput || (editIdx >= 0 ? users[editIdx]?.pass : "");
+  const pass = passInput || (!isNaN(editIdx) && editIdx >= 0 ? users[editIdx]?.pass : "");
 
-  if(!nombre || !user || (!passInput && editIdx < 0)){
+  if(!nombre || !user || (!passInput && (isNaN(editIdx) || editIdx < 0))){
   showToast("Completa todos los campos del usuario.","error");
   return;
 }
