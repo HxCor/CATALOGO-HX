@@ -942,6 +942,47 @@ button[onclick="openAddForm()"]{
   }
 }
 
+/* =========================================================
+   USER PERMISSION TOOLS
+   Botón todas las empresas + selector por categoría
+========================================================= */
+
+.user-permission-tools{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.user-permission-tools .btn,
+.user-permission-tools .form-select{
+  width: 100%;
+  min-height: 46px;
+  border-radius: 14px !important;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.user-permission-tools .btn{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: normal;
+  padding: 10px 14px;
+}
+
+.user-permission-tools .form-select{
+  padding: 10px 14px;
+  background-color: #f7f6f2;
+}
+
+@media (max-width: 700px){
+  .user-permission-tools{
+    grid-template-columns: 1fr;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -1269,6 +1310,16 @@ button[onclick="openAddForm()"]{
     placeholder="RFC permitidos, uno por línea. Ej:&#10;VEL0206259IA&#10;FIS231113CR7&#10;OSM211201TJA"
     style="font-family:'JetBrains Mono',monospace"
   ></textarea>
+  
+  <div class="user-permission-tools">
+  <button type="button" class="btn btn-secondary" onclick="selectAllEmpresasUsuario()">
+    Seleccionar todas las empresas
+  </button>
+
+  <select class="form-select" id="uCategoriaSelect" onchange="selectEmpresasPorCategoriaUsuario(this.value)">
+    <option value="">Seleccionar por categoría</option>
+  </select>
+</div>
 </div>
     </div>
     <div class="drawer-footer">
@@ -2131,6 +2182,7 @@ function editUser(idx){
   document.getElementById("uPass").placeholder = "Dejar vacío para conservar contraseña actual";
   document.getElementById("uRol").value = u.rol || "viewer";
   document.getElementById("uEmpresasPermitidas").value = u.empresasPermitidas || "";
+  refreshUserCategoriaSelect();
 
   openOverlay('userFormOverlay');
 }
@@ -2338,6 +2390,53 @@ async function doDelete(idx){
 }
 
 /* ── USER MANAGEMENT ── */
+function refreshUserCategoriaSelect(){
+  const select = document.getElementById("uCategoriaSelect");
+  if(!select) return;
+
+  const cats = getCats();
+
+  select.innerHTML = `
+    <option value="">Seleccionar por categoría</option>
+    ${cats.map(c => `<option value="${c.nombre}">${c.icono || ""} ${c.nombre}</option>`).join("")}
+  `;
+}
+
+function setEmpresasPermitidasTextarea(rfcs){
+  const textarea = document.getElementById("uEmpresasPermitidas");
+  if(!textarea) return;
+
+  const cleanRfcs = [...new Set(
+    rfcs
+      .map(r => String(r || "").trim().toUpperCase())
+      .filter(Boolean)
+  )];
+
+  textarea.value = cleanRfcs.join("\n");
+}
+
+function selectAllEmpresasUsuario(){
+  if(!requireAdmin()) return;
+
+  const proveedores = getProveedores();
+  const rfcs = proveedores.map(p => p.rfc);
+
+  setEmpresasPermitidasTextarea(rfcs);
+  showToast("Todas las empresas fueron seleccionadas.", "success");
+}
+
+function selectEmpresasPorCategoriaUsuario(categoria){
+  if(!requireAdmin()) return;
+  if(!categoria) return;
+
+  const proveedores = getProveedores();
+  const rfcs = proveedores
+    .filter(p => p.categoria === categoria)
+    .map(p => p.rfc);
+
+  setEmpresasPermitidasTextarea(rfcs);
+  showToast(`Empresas de ${categoria} seleccionadas.`, "success");
+}
 function openUserForm(){
   if (!requireAdmin()) return;
 
@@ -2345,6 +2444,7 @@ function openUserForm(){
   document.getElementById("userFormTitle").textContent="Nuevo Usuario";
   ["uNombre","uUser","uPass","uEmpresasPermitidas"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("uRol").value="viewer";
+  refreshUserCategoriaSelect();
   openOverlay('userFormOverlay');
 }
 
