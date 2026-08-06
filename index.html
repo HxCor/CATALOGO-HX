@@ -1934,8 +1934,52 @@ async function doLogin() {
   document.getElementById("screenLogin").classList.remove("active");
   document.getElementById("screenApp").classList.add("active");
 
-  initApp();
+ try {
+  await fetch(`${HX_API_BASE}/proveedores?v=${Date.now()}`)
+    .then(r => r.json())
+    .then(data => {
+      const records = Array.isArray(data.records)
+        ? data.records
+        : Array.isArray(data.data)
+        ? data.data
+        : Array.isArray(data.data?.records)
+        ? data.data.records
+        : [];
+
+      const proveedoresAirtable = records
+        .map(record => {
+          const f = record.fields || {};
+          return {
+            nombre: f["Nombre comercial"] || f["Nombre"] || "",
+            rfc: String(f["RFC"] || "").trim().toUpperCase(),
+            categoria: f["Categoria"] || f["Categoría"] || "",
+            repse: Boolean(f["REPSE"]),
+            repseFolio: f["Folio REPSE"] || "",
+            servicios: String(f["Actividades / Servicios"] || "")
+              .split(",")
+              .map(s => s.trim())
+              .filter(Boolean),
+            contacto: f["Contacto"] || "",
+            telefono: f["Telefono"] || f["Teléfono"] || "",
+            email: f["Email"] || "",
+            estado: f["Estado"] || "",
+            ciudad: f["Ciudad"] || "",
+            web: f["Sitio Web"] || "",
+            _airtableId: record.id
+          };
+        })
+        .filter(p => p.rfc || p.nombre);
+
+      if (proveedoresAirtable.length) {
+        saveProveedores(proveedoresAirtable);
+        console.log("Proveedores recargados al iniciar sesión:", proveedoresAirtable);
+      }
+    });
+} catch (error) {
+  console.error("No se pudieron recargar proveedores al iniciar sesión:", error);
 }
+
+initApp();
 
 document.getElementById("loginUser").addEventListener("keydown", e=>{
   if(e.key==="Enter") document.getElementById("loginPass").focus();
