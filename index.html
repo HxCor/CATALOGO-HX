@@ -1953,25 +1953,27 @@ try {
 
       const proveedoresAirtable = records
         .map(record => {
-          const f = record.fields || {};
-          return {
-            nombre: f["Nombre comercial"] || f["Nombre"] || "",
-            rfc: String(f["RFC"] || "").trim().toUpperCase(),
-            categoria: f["Categoria"] || f["Categoría"] || "",
-            repse: Boolean(f["REPSE"]),
-            repseFolio: f["Folio REPSE"] || "",
-            servicios: String(f["Actividades / Servicios"] || "")
-              .split(",")
-              .map(s => s.trim())
-              .filter(Boolean),
-            contacto: f["Contacto"] || "",
-            telefono: f["Telefono"] || f["Teléfono"] || "",
-            email: f["Email"] || "",
-            estado: f["Estado"] || "",
-            ciudad: f["Ciudad"] || "",
-            web: f["Sitio Web"] || "",
-            _airtableId: record.id
-          };
+          const f = record.fields || record || {};
+return {
+  nombre: f["Nombre comercial"] || f["Nombre"] || f.nombre || "",
+  rfc: String(f["RFC"] || f.rfc || "").trim().toUpperCase(),
+  categoria: f["Categoria"] || f["Categoría"] || f.categoria || "",
+  repse: Boolean(f["REPSE"] ?? f.repse),
+  repseFolio: f["Folio REPSE"] || f.repseFolio || "",
+  servicios: Array.isArray(f.servicios)
+    ? f.servicios
+    : String(f["Actividades / Servicios"] || f.servicios || "")
+        .split(",")
+        .map(s => s.trim())
+        .filter(Boolean),
+  contacto: f["Contacto"] || f.contacto || "",
+  telefono: f["Telefono"] || f["Teléfono"] || f.telefono || "",
+  email: f["Email"] || f.email || "",
+  estado: f["Estado"] || f.estado || "",
+  ciudad: f["Ciudad"] || f.ciudad || "",
+  web: f["Sitio Web"] || f.web || "",
+  _airtableId: record.id || f._airtableId || ""
+};
         })
         .filter(p => p.rfc || p.nombre);
 
