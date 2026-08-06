@@ -1944,48 +1944,49 @@ try {
     .then(r => r.json())
     .then(data => {
       const records = Array.isArray(data.records)
-  ? data.records
-  : Array.isArray(data.data)
-  ? data.data
-  : Array.isArray(data.data?.records)
-  ? data.data.records
-  : Array.isArray(data.proveedores)
-  ? data.proveedores
-  : [];
+        ? data.records
+        : Array.isArray(data.data)
+        ? data.data
+        : Array.isArray(data.data?.records)
+        ? data.data.records
+        : Array.isArray(data.proveedores)
+        ? data.proveedores
+        : [];
+
       const proveedoresAirtable = records
-  .map(record => {
-    const f = record.fields || record || {};
-    return {
-      nombre: f["Empresa"] || f["Nombre comercial"] || f["Nombre"] || f.nombre || "",
-      rfc: String(f["RFC"] || f.rfc || "").trim().toUpperCase(),
-      categoria: f["Categoria"] || f["Categoría"] || f.categoria || "",
-      repse: Boolean(f["REPSE"] ?? f.repse),
-      repseFolio: f["Folio REPSE"] || f.repseFolio || "",
-      servicios: Array.isArray(f.servicios)
-        ? f.servicios
-        : String(f["Actividades / Servicios"] || f.servicios || "")
-            .split(",")
-            .map(s => s.trim())
-            .filter(Boolean),
-      contacto: f["Contacto"] || f.contacto || "",
-      telefono: f["Telefono"] || f["Teléfono"] || f.telefono || "",
-      email: f["Email"] || f.email || "",
-      estado: f["Estado"] || f.estado || "",
-      ciudad: f["Ciudad"] || f.ciudad || "",
-      web: f["Sitio Web"] || f.web || "",
-      _airtableId: record.id || f._airtableId || ""
-    };
-  })
-  .filter(p => p.rfc || p.nombre);
+        .map(record => {
+          const f = record.fields || record || {};
+          return {
+            nombre: f["Empresa"] || f["Nombre comercial"] || f["Nombre"] || f.nombre || "",
+            rfc: String(f["RFC"] || f.rfc || "").trim().toUpperCase(),
+            categoria: f["Categoria"] || f["Categoría"] || f.categoria || "",
+            repse: Boolean(f["REPSE"] ?? f.repse),
+            repseFolio: f["Folio REPSE"] || f.repseFolio || "",
+            servicios: Array.isArray(f.servicios)
+              ? f.servicios
+              : String(f["Actividades / Servicios"] || f.servicios || "")
+                  .split(",")
+                  .map(s => s.trim())
+                  .filter(Boolean),
+            contacto: f["Contacto"] || f.contacto || "",
+            telefono: f["Telefono"] || f["Teléfono"] || f.telefono || "",
+            email: f["Email"] || f.email || "",
+            estado: f["Estado"] || f.estado || "",
+            ciudad: f["Ciudad"] || f.ciudad || "",
+            web: f["Sitio Web"] || f.web || "",
+            _airtableId: record.id || f._airtableId || ""
+          };
+        })
+        .filter(p => p.rfc || p.nombre);
 
-const proveedoresUnicos = [...new Map(
-  proveedoresAirtable.map(p => [String(p.rfc || p.nombre).trim().toUpperCase(), p])
-).values()];
+      const proveedoresUnicos = [...new Map(
+        proveedoresAirtable.map(p => [String(p.rfc || p.nombre).trim().toUpperCase(), p])
+      ).values()];
 
-if (proveedoresUnicos.length) {
-  saveProveedores(proveedoresUnicos);
-  console.log("Proveedores recargados al iniciar sesión:", proveedoresUnicos);
-}
+      if (proveedoresUnicos.length) {
+        saveProveedores(proveedoresUnicos);
+        console.log("Proveedores recargados al iniciar sesión:", proveedoresUnicos);
+      }
     });
 } catch (error) {
   console.error("No se pudieron recargar proveedores al iniciar sesión:", error);
