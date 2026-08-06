@@ -1624,7 +1624,8 @@ function usuarioFromAirtableRecord(record){
   rol: f["Rol"] || f.rol || "viewer",
   empresasPermitidas: f["Empresas permitidas"] || f.empresasPermitidas || "",
   _airtableId: record.id || f._airtableId || ""
-};
+ };
+}
 
 async function loadUsersFromAirtable(){
   try {
