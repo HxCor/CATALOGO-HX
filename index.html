@@ -1615,17 +1615,16 @@ function saveLogosExtra(obj) { localStorage.setItem(LS_LOGOS, JSON.stringify(obj
 const HX_API_BASE = "https://catalogo-hx-backend.armando-avila.workers.dev";
 
 function usuarioFromAirtableRecord(record){
-  const f = record.fields || {};
+  const f = record.fields || record || {};
 
   return {
-    nombre: f["Nombre completo"] || "",
-    user: f["Usuario"] || "",
-    pass: f["Contraseña"] || "",
-    rol: f["Rol"] || "viewer",
-    empresasPermitidas: f["Empresas permitidas"] || "",
-    _airtableId: record.id
-  };
-}
+  nombre: f["Nombre completo"] || f.nombre || "",
+  user: f["Usuario"] || f.user || "",
+  pass: f["Contraseña"] || f.pass || "",
+  rol: f["Rol"] || f.rol || "viewer",
+  empresasPermitidas: f["Empresas permitidas"] || f.empresasPermitidas || "",
+  _airtableId: record.id || f._airtableId || ""
+};
 
 async function loadUsersFromAirtable(){
   try {
