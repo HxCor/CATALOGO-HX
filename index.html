@@ -1985,10 +1985,17 @@ async function doLogin() {
           proveedoresAirtable.map(p => [String(p.rfc || p.nombre).trim().toUpperCase(), p])
         ).values()];
 
-        if (proveedoresUnicos.length) {
-          saveProveedores(proveedoresUnicos);
-          console.log("Proveedores recargados al iniciar sesión:", proveedoresUnicos);
-        }
+        const actuales = getProveedores();
+
+if (proveedoresUnicos.length >= actuales.length) {
+  saveProveedores(proveedoresUnicos);
+  console.log("Proveedores recargados al iniciar sesión:", proveedoresUnicos);
+} else {
+  console.warn("Airtable trae menos proveedores. Se conservan los locales:", {
+    airtable: proveedoresUnicos.length,
+    locales: actuales.length
+  });
+}
       });
   } catch (error) {
     console.error("No se pudieron recargar proveedores al iniciar sesión:", error);
