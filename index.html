@@ -1956,7 +1956,7 @@ try {
         .map(record => {
           const f = record.fields || record || {};
 return {
-  nombre: f["Nombre comercial"] || f["Nombre"] || f.nombre || "",
+  nombre: f["Empresa"] || f["Nombre comercial"] || f["Nombre"] || f.nombre || "",
   rfc: String(f["RFC"] || f.rfc || "").trim().toUpperCase(),
   categoria: f["Categoria"] || f["Categoría"] || f.categoria || "",
   repse: Boolean(f["REPSE"] ?? f.repse),
