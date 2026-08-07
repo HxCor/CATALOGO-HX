@@ -1521,6 +1521,88 @@ button[onclick="openAddForm()"]{
     grid-template-columns: 1fr !important;
   }
 }
+/* =========================================================
+   FIX FINAL MOBILE SIDEBAR — FORZAR MENÚ ARRIBA
+========================================================= */
+@media (max-width: 1100px){
+
+  #screenApp,
+  #screenApp.active{
+    display: block !important;
+    width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  .app{
+    display: block !important;
+    grid-template-columns: none !important;
+    width: 100% !important;
+  }
+
+  aside,
+  .sidebar,
+  #sidebar,
+  .side,
+  .side-panel{
+    position: relative !important;
+    inset: auto !important;
+    top: auto !important;
+    left: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: auto !important;
+    display: block !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--border) !important;
+    padding: 12px 14px !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+  }
+
+  main,
+  .content,
+  .main-content,
+  .page-content{
+    margin-left: 0 !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .side-section{
+    margin-bottom: 10px !important;
+  }
+
+  .side-section + .side-section{
+    margin-top: 10px !important;
+  }
+
+  .side-title{
+    margin-bottom: 8px !important;
+  }
+
+  .side-list,
+  nav,
+  .sidebar nav{
+    display: flex !important;
+    gap: 8px !important;
+    overflow-x: auto !important;
+    padding-bottom: 6px !important;
+  }
+
+  .side-item{
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+  }
+
+  #cardsGrid{
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+  }
+}
 
 </style>
 </head>
