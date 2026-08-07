@@ -1214,6 +1214,7 @@ button[onclick="openAddForm()"]{
                 <th>RFC</th>
                 <th>Rubro</th>
                 <th>REPSE</th>
+                <th>Documentos</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -2306,12 +2307,23 @@ function openAdminPanel(){
 }
 function renderAdminTable(){
   const provs = getProveedores();
-  document.getElementById("adminTableBody").innerHTML = provs.map((p,i)=>`
+  document.getElementById("adminTableBody").innerHTML = provs.map((p,i)=>{
+    const hasConstancia = !!p.constanciaFiscalUrl;
+const hasOpinion = !!p.opinionCumplimientoUrl;
+
+const docsStatus = hasConstancia && hasOpinion
+  ? '<span class="repse-pill" style="border-color:#16a34a;color:#166534;background:#dcfce7">✅ Completo</span>'
+  : hasConstancia || hasOpinion
+    ? '<span class="repse-pill" style="border-color:#d97706;color:#92400e;background:#fef3c7">⚠️ Parcial</span>'
+    : '<span class="repse-pill" style="border-color:#dc2626;color:#991b1b;background:#fee2e2">❌ Pendiente</span>';
+
+return `
     <tr>
       <td><div class="td-name">${p.nombre}</div></td>
       <td><span class="td-rfc">${p.rfc}</span></td>
       <td><span class="cat-badge ${getCatChip(p.categoria)}" style="font-size:10px">${p.categoria}</span></td>
       <td>${p.repse?'<span class="repse-pill">REPSE</span>':'-'}</td>
+      <td>${docsStatus}</td>
       <td><div class="td-actions">
         <button class="btn btn-secondary btn-sm" onclick="closeOverlay('adminOverlay');openEditForm(${i})">✏️</button>
         <button class="btn btn-danger btn-sm"    onclick="closeOverlay('adminOverlay');confirmDelete(${i})">🗑️</button>
