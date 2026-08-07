@@ -2307,15 +2307,16 @@ function openAdminPanel(){
 }
 function renderAdminTable(){
   const provs = getProveedores();
+
   document.getElementById("adminTableBody").innerHTML = provs.map((p,i)=>{
     const hasConstancia = !!p.constanciaFiscalUrl;
-const hasOpinion = !!p.opinionCumplimientoUrl;
+    const hasOpinion = !!p.opinionCumplimientoUrl;
 
-const docsStatus = hasConstancia && hasOpinion
-  ? '<span class="repse-pill" style="border-color:#16a34a;color:#166534;background:#dcfce7">✅ Completo</span>'
-  : hasConstancia || hasOpinion
-    ? '<span class="repse-pill" style="border-color:#d97706;color:#92400e;background:#fef3c7">⚠️ Parcial</span>'
-    : '<span class="repse-pill" style="border-color:#dc2626;color:#991b1b;background:#fee2e2">❌ Pendiente</span>';
+    const docsStatus = hasConstancia && hasOpinion
+      ? '<span class="repse-pill" style="border-color:#16a34a;color:#166534;background:#dcfce7">✅ Completo</span>'
+      : hasConstancia || hasOpinion
+        ? '<span class="repse-pill" style="border-color:#d97706;color:#92400e;background:#fef3c7">⚠️ Parcial</span>'
+        : '<span class="repse-pill" style="border-color:#dc2626;color:#991b1b;background:#fee2e2">❌ Pendiente</span>';
 
 return `
     <tr>
@@ -2328,7 +2329,7 @@ return `
         <button class="btn btn-secondary btn-sm" onclick="closeOverlay('adminOverlay');openEditForm(${i})">✏️</button>
         <button class="btn btn-danger btn-sm"    onclick="closeOverlay('adminOverlay');confirmDelete(${i})">🗑️</button>
       </div></td>
-    </tr>`).join('');
+    </tr>`}).join('');
 }
 function renderUsersList(){
   const users = getUsers();
