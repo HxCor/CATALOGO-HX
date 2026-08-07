@@ -1603,6 +1603,75 @@ button[onclick="openAddForm()"]{
     width: 100% !important;
   }
 }
+/* =========================================================
+   MOBILE/TABLET — FORZAR SIDEBAR ARRIBA POR ESTRUCTURA
+========================================================= */
+@media (max-width: 1100px){
+
+  #screenApp{
+    display: block !important;
+  }
+
+  #screenApp .topbar{
+    width: 100% !important;
+  }
+
+  #screenApp .app{
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: none !important;
+    width: 100% !important;
+  }
+
+  #screenApp .app > *:first-child{
+    order: 1 !important;
+    position: relative !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: auto !important;
+    left: auto !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--border) !important;
+    padding: 12px 14px !important;
+    overflow-x: auto !important;
+  }
+
+  #screenApp .app > *:nth-child(2){
+    order: 2 !important;
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+
+  #screenApp .app > *:first-child .side-section{
+    margin-bottom: 10px !important;
+  }
+
+  #screenApp .app > *:first-child .side-section > div:not(.side-title),
+  #screenApp .app > *:first-child nav,
+  #screenApp .app > *:first-child ul{
+    display: flex !important;
+    gap: 8px !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+  }
+
+  #screenApp .app > *:first-child .side-item{
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+  }
+
+  #cardsGrid{
+    grid-template-columns: 1fr !important;
+  }
+}
 
 </style>
 </head>
