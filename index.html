@@ -1673,25 +1673,54 @@ button[onclick="openAddForm()"]{
   }
 }
 /* =========================================================
-   MOBILE FINAL — SIDEBAR COMO MENÚ HORIZONTAL
+   MOBILE CLEAN — MENÚ COMPACTO PROFESIONAL
 ========================================================= */
 @media (max-width: 600px){
 
-  #screenApp .app > *:first-child,
-  aside,
-  .sidebar{
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    gap: 8px !important;
+  body{
+    overflow-x: hidden !important;
+  }
+
+  .topbar{
+    display: grid !important;
+    grid-template-columns: 1fr auto;
+    gap: 10px !important;
+    padding: 10px 12px !important;
+  }
+
+  .brand{
+    width: auto !important;
+  }
+
+  .search{
+    grid-column: 1 / -1 !important;
+    order: 3 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .top-actions{
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    justify-content: space-between !important;
+    margin-left: 0 !important;
+  }
+
+  #screenApp .app{
+    display: block !important;
+  }
+
+  #screenApp .app > *:first-child{
     width: 100% !important;
     max-width: 100% !important;
     height: auto !important;
-    min-height: auto !important;
-    padding: 10px 12px !important;
+    max-height: 150px !important;
     overflow-x: auto !important;
     overflow-y: hidden !important;
-    white-space: nowrap !important;
+    padding: 10px 12px !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--border) !important;
+    background: #fff !important;
   }
 
   .side-title{
@@ -1699,64 +1728,53 @@ button[onclick="openAddForm()"]{
   }
 
   .side-section{
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    gap: 8px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: 0 !important;
-    flex: 0 0 auto !important;
-  }
-
-  .side-item{
-    flex: 0 0 auto !important;
     display: inline-flex !important;
     align-items: center !important;
     gap: 8px !important;
-    min-height: 36px !important;
-    padding: 8px 12px !important;
-    border-radius: 12px !important;
+    margin: 0 0 8px 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
     white-space: nowrap !important;
   }
 
-  .side-item .count,
-  .side-count,
-  .badge-count{
-    margin-left: 6px !important;
+  .side-item{
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 auto !important;
+    min-height: 36px !important;
+    padding: 8px 12px !important;
+    border-radius: 999px !important;
+    white-space: nowrap !important;
   }
 
   .content{
-    padding-top: 14px !important;
-  }
-
-  .topbar{
-    gap: 8px !important;
-  }
-
-  .brand{
-    width: auto !important;
-    flex: 0 0 auto !important;
-  }
-
-  .brand span,
-  .brand-name{
-    font-size: 15px !important;
-  }
-
-  .search{
-    order: initial !important;
-    flex: 1 1 140px !important;
-    min-width: 130px !important;
-  }
-
-  .top-actions{
-    width: 100% !important;
-    justify-content: space-between !important;
+    padding: 14px 12px 80px !important;
   }
 
   .stats{
-    margin-top: 12px !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .stat-card{
+    min-height: 92px !important;
+    padding: 14px !important;
+  }
+
+  .section-head{
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  #adminAddBtn{
+    width: 100% !important;
+  }
+
+  #cardsGrid{
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
   }
 }
 
