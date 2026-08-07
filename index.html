@@ -1987,15 +1987,22 @@ async function doLogin() {
 
         const actuales = getProveedores();
 
-if (proveedoresUnicos.length >= actuales.length) {
-  saveProveedores(proveedoresUnicos);
-  console.log("Proveedores recargados al iniciar sesión:", proveedoresUnicos);
-} else {
-  console.warn("Airtable trae menos proveedores. Se conservan los locales:", {
-    airtable: proveedoresUnicos.length,
-    locales: actuales.length
-  });
-}
+const proveedoresFusionados = [
+  ...new Map(
+    [...actuales, ...proveedoresUnicos].map(p => [
+      String(p.rfc || p.nombre).trim().toUpperCase(),
+      p
+    ])
+  ).values()
+];
+
+saveProveedores(proveedoresFusionados);
+
+console.log("Proveedores fusionados local + Airtable:", {
+  locales: actuales.length,
+  airtable: proveedoresUnicos.length,
+  fusionados: proveedoresFusionados.length
+});
       });
   } catch (error) {
     console.error("No se pudieron recargar proveedores al iniciar sesión:", error);
