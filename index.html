@@ -1319,7 +1319,17 @@ button[onclick="openAddForm()"]{
         <label class="form-label">Servicios (uno por línea)</label>
         <textarea class="form-textarea" id="fServicios" rows="12" style="min-height:220px; resize:vertical;" placeholder="Construcción de obras de urbanización&#10;Alquiler de maquinaria para construcción&#10;..."></textarea>
       </div>
+<div class="form-row">
+  <div class="form-group">
+    <label class="form-label">Constancia Fiscal URL</label>
+    <input class="form-input" id="fConstanciaFiscalUrl" placeholder="https://drive.google.com/..." />
+  </div>
 
+  <div class="form-group">
+    <label class="form-label">Opinión Cumplimiento URL</label>
+    <input class="form-input" id="fOpinionCumplimientoUrl" placeholder="https://drive.google.com/..." />
+  </div>
+</div>
       <div class="form-section-title">Datos Bancarios</div>
       <div id="banksContainer"></div>
       <button class="add-bank-btn" onclick="addBankField()">
@@ -1730,6 +1740,8 @@ function proveedorToAirtableFields(entry) {
   if (entry.estado) fields["Estado"] = entry.estado;
   if (entry.ciudad) fields["Ciudad"] = entry.ciudad;
   if (entry.web) fields["Sitio Web"] = entry.web;
+  if (entry.constanciaFiscalUrl) fields["Constancia Fiscal URL"] = entry.constanciaFiscalUrl;
+  if (entry.opinionCumplimientoUrl) fields["Opinión Cumplimiento URL"] = entry.opinionCumplimientoUrl;
 
   return fields;
 }
@@ -2405,6 +2417,8 @@ function openAddForm(){
   document.getElementById("fRfc").value="";
   document.getElementById("fRepse").checked=false;
   document.getElementById("fServicios").value="";
+  document.getElementById("fConstanciaFiscalUrl").value = "";
+  document.getElementById("fOpinionCumplimientoUrl").value = "";
   document.getElementById("banksContainer").innerHTML="";
   bankCount=0; addBankField();
   pendingLogoB64=null;
@@ -2425,6 +2439,8 @@ function openEditForm(idx){
   document.getElementById("fRfc").value=p.rfc;
   document.getElementById("fRepse").checked=p.repse;
   document.getElementById("fServicios").value=(p.servicios||[]).join("\n");
+  document.getElementById("fConstanciaFiscalUrl").value = p.constanciaFiscalUrl || "";
+  document.getElementById("fOpinionCumplimientoUrl").value = p.opinionCumplimientoUrl || "";
   document.getElementById("banksContainer").innerHTML="";
   bankCount=0;
   if((p.bancos||[]).length){ p.bancos.forEach(b=>addBankField(b)); } else addBankField();
@@ -2471,6 +2487,8 @@ async function saveForm(){
   const cat   =document.getElementById("fCat").value;
   if(!nombre||!rfc||!cat){ showToast("Por favor completa los campos obligatorios.","error"); return; }
   const servicios=document.getElementById("fServicios").value.split("\n").map(s=>s.trim()).filter(Boolean);
+  const constanciaFiscalUrl = document.getElementById("fConstanciaFiscalUrl").value.trim();
+  const opinionCumplimientoUrl = document.getElementById("fOpinionCumplimientoUrl").value.trim();
   const bancos=[];
   document.querySelectorAll(".bank-form-block").forEach(block=>{
     const nb=block.querySelector(".bank-nombre").value.trim();
@@ -2478,7 +2496,16 @@ async function saveForm(){
     const cl=block.querySelector(".bank-clabe").value.trim();
     if(nb) bancos.push({nombre:nb,cuenta:cu,clabe:cl});
   });
-  const entry={nombre,rfc,categoria:cat,repse:document.getElementById("fRepse").checked,servicios,bancos};
+  const entry={
+  nombre,
+  rfc,
+  categoria: cat,
+  repse: document.getElementById("fRepse").checked,
+  servicios,
+  bancos,
+  constanciaFiscalUrl,
+  opinionCumplimientoUrl
+};
   const editIdx=parseInt(document.getElementById("fEditIdx").value);
   if(pendingLogoB64){
     const extras=getLogosExtra(); extras[rfc]=pendingLogoB64; saveLogosExtra(extras); pendingLogoB64=null;
