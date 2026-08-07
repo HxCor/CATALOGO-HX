@@ -1015,6 +1015,37 @@ button[onclick="openAddForm()"]{
     grid-template-columns: 1fr;
   }
 }
+/* =========================================================
+   DOCUMENTOS FISCALES EN TARJETA
+========================================================= */
+.pcard-docs{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 16px 0;
+}
+
+.doc-btn{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.doc-btn:hover{
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
 
 </style>
 </head>
@@ -1976,6 +2007,8 @@ async function doLogin() {
               estado: f["Estado"] || f.estado || "",
               ciudad: f["Ciudad"] || f.ciudad || "",
               web: f["Sitio Web"] || f.web || "",
+              constanciaFiscalUrl: f["Constancia Fiscal URL"] || f.constanciaFiscalUrl || "",
+              opinionCumplimientoUrl: f["Opinión Cumplimiento URL"] || f.opinionCumplimientoUrl || "",
               _airtableId: record.id || f._airtableId || ""
             };
           })
@@ -2175,6 +2208,20 @@ function renderCards() {
           ${(p.servicios||[]).length>3?`<li class="srv-more">+${p.servicios.length-3} actividades más</li>`:''}
         </ul>
       </div>
+      ${(p.constanciaFiscalUrl || p.opinionCumplimientoUrl) ? `
+  <div class="pcard-docs" onclick="event.stopPropagation()">
+    ${p.constanciaFiscalUrl ? `
+      <a class="doc-btn" href="${p.constanciaFiscalUrl}" target="_blank" rel="noopener">
+        📄 Constancia Fiscal
+      </a>
+    ` : ''}
+    ${p.opinionCumplimientoUrl ? `
+      <a class="doc-btn" href="${p.opinionCumplimientoUrl}" target="_blank" rel="noopener">
+        📄 Opinión SAT
+      </a>
+    ` : ''}
+  </div>
+` : ''}
       ${(p.bancos||[]).length?`<div class="pcard-footer">${p.bancos.map(b=>`
         <div class="bank-tag"><strong>${b.nombre}</strong>
         <span style="color:var(--ink3);font-size:10px">${b.cuenta&&b.cuenta!=='CTA'?b.cuenta.slice(-6):''}</span></div>`).join('')}</div>`:''}
