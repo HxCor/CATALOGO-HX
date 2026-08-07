@@ -1456,6 +1456,71 @@ button[onclick="openAddForm()"]{
     border-radius: 0 !important;
   }
 }
+/* =========================================================
+   FIX SIDEBAR RESPONSIVE — TABLET / MOBILE
+========================================================= */
+@media (max-width: 1100px){
+
+  .app,
+  .main,
+  .app-shell,
+  .layout{
+    display: block !important;
+    grid-template-columns: none !important;
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    width: 100% !important;
+  }
+
+  .sidebar{
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    display: block !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--border) !important;
+    padding: 12px 14px !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+  }
+
+  .sidebar .side-section{
+    margin-bottom: 14px !important;
+  }
+
+  .sidebar .side-list,
+  .sidebar nav,
+  .side-items{
+    display: flex !important;
+    gap: 8px !important;
+    overflow-x: auto !important;
+    padding-bottom: 4px !important;
+  }
+
+  .side-item{
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+    min-width: auto !important;
+  }
+
+  .content,
+  main{
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+
+  #cardsGrid{
+    width: 100% !important;
+    grid-template-columns: 1fr !important;
+  }
+}
 
 </style>
 </head>
