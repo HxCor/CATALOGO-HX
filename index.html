@@ -1815,6 +1815,143 @@ button[onclick="openAddForm()"]{
     width: 100% !important;
   }
 }
+/* =========================================================
+   OVERRIDE FINAL — MOBILE PREMIUM SIN SIDEBAR
+========================================================= */
+@media (max-width: 600px){
+
+  html,
+  body{
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    background: #f6f5f2 !important;
+  }
+
+  #screenApp,
+  #screenApp.active{
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  #screenApp .app{
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Ocultar completamente menú lateral en celular */
+  #screenApp .app > aside,
+  #screenApp .app > .sidebar,
+  #screenApp .app > div:first-child,
+  aside,
+  .sidebar{
+    display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+  }
+
+  .topbar{
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    padding: 12px !important;
+    background: #fff !important;
+    border-bottom: 1px solid var(--border) !important;
+  }
+
+  .brand{
+    width: 100% !important;
+    justify-content: flex-start !important;
+  }
+
+  .search{
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    order: initial !important;
+  }
+
+  .top-actions{
+    width: 100% !important;
+    margin-left: 0 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+  }
+
+  .content,
+  main,
+  .main-content,
+  .page-content,
+  #screenApp .app > div:nth-child(2){
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 18px 14px 90px !important;
+  }
+
+  .stats{
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+    margin-bottom: 26px !important;
+  }
+
+  .stat-card{
+    min-height: 96px !important;
+    padding: 16px !important;
+    border-radius: 18px !important;
+    background: #fff !important;
+  }
+
+  .section-head{
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    margin-bottom: 18px !important;
+  }
+
+  .section-title{
+    font-size: 25px !important;
+    line-height: 1.12 !important;
+  }
+
+  #adminAddBtn{
+    width: 100% !important;
+    height: 46px !important;
+    border-radius: 14px !important;
+  }
+
+  #cardsGrid{
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  #cardsGrid > div,
+  .pcard,
+  .provider-card,
+  .card{
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 420px !important;
+    border-radius: 20px !important;
+  }
+}
 
 </style>
 </head>
