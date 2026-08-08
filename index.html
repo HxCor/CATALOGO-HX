@@ -2122,6 +2122,125 @@ button[onclick="openAddForm()"]{
     box-shadow: 0 8px 24px rgba(15,23,42,.06) !important;
   }
 }
+/* =========================================================
+   MOBILE PREMIUM FINAL — AJUSTE FINO 390PX
+========================================================= */
+@media (max-width: 600px){
+
+  .topbar{
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    padding: 12px !important;
+    overflow: hidden !important;
+  }
+
+  .brand{
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  .search{
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .search input,
+  #searchInput{
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    height: 44px !important;
+    border-radius: 14px !important;
+  }
+
+  .top-actions{
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1.3fr auto !important;
+    gap: 8px !important;
+    align-items: center !important;
+    margin: 0 !important;
+  }
+
+  #roleBadge,
+  .badge-role{
+    min-width: 0 !important;
+    width: 100% !important;
+    font-size: 9px !important;
+    padding: 8px 6px !important;
+    text-align: center !important;
+  }
+
+  .user-chip,
+  .top-user,
+  .user-menu{
+    min-width: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .user-chip span,
+  .top-user span,
+  .user-menu span{
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .btn-logout,
+  .logout-btn,
+  button[onclick="doLogout()"]{
+    width: auto !important;
+    min-width: 56px !important;
+    height: 38px !important;
+    padding: 0 10px !important;
+    font-size: 11px !important;
+    border-radius: 12px !important;
+  }
+
+  .content{
+    padding: 18px 14px 90px !important;
+  }
+
+  .stats{
+    margin-top: 0 !important;
+    margin-bottom: 26px !important;
+  }
+
+  .section-head{
+    gap: 12px !important;
+  }
+
+  .section-title{
+    font-size: 24px !important;
+  }
+
+  #adminAddBtn{
+    margin-top: 4px !important;
+    width: 100% !important;
+  }
+
+  .pcard-top{
+    grid-template-columns: auto 1fr auto !important;
+    gap: 12px !important;
+  }
+
+  .pcard-name{
+    font-size: 15px !important;
+  }
+
+  .pcard-actions{
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
 
 </style>
 </head>
