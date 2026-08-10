@@ -1431,7 +1431,7 @@ button[onclick="openAddForm()"]{
   }
 }
 
-@media (max-width: 600px){
+@media (max-width: 768px)
   .stats{
     grid-template-columns: 1fr !important;
   }
@@ -1843,22 +1843,49 @@ button[onclick="openAddForm()"]{
     padding: 0 !important;
   }
 
-  /* Ocultar completamente menú lateral en celular */
-  #screenApp .app > aside,
-  #screenApp .app > .sidebar,
-  #screenApp .app > div:first-child,
-  aside,
-  .sidebar{
-    display: none !important;
-    visibility: hidden !important;
-    width: 0 !important;
-    height: 0 !important;
-    max-height: 0 !important;
-    overflow: hidden !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    border: 0 !important;
-  }
+ /* Menú de servicios mobile premium */
+#screenApp .app > aside,
+#screenApp .app > .sidebar,
+#screenApp .app > div:first-child,
+aside,
+.sidebar{
+  display: block !important;
+  visibility: visible !important;
+  width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  padding: 12px 14px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--border) !important;
+  background: #fff !important;
+}
+
+.side-title{
+  display: none !important;
+}
+
+.side-section{
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 0 10px 0 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  white-space: nowrap !important;
+}
+
+.side-item{
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-height: 36px !important;
+  padding: 8px 12px !important;
+  border-radius: 999px !important;
+  white-space: nowrap !important;
+}
 
   .topbar{
     display: grid !important;
@@ -2431,6 +2458,276 @@ button[onclick="openAddForm()"]{
 
   .content{
     padding-top: 20px !important;
+  }
+}
+/* =========================================================
+   MOBILE / TABLET CLEAN DASHBOARD
+   Header limpio + menú visible + cards ordenadas
+========================================================= */
+
+/* ---------- MOBILE ---------- */
+@media (max-width: 768px){
+
+  html, body{
+    overflow-x: hidden !important;
+  }
+
+  /* Layout general */
+  .app-shell,
+  .layout,
+  .dashboard-layout,
+  .catalog-layout{
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+  }
+
+  /* Topbar */
+  .topbar{
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    z-index: 5 !important;
+
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+
+    padding: 14px !important;
+    margin: 0 !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  .brand{
+    width: 100% !important;
+    display: flex !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+  }
+
+  .search{
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    display: block !important;
+  }
+
+  .search input,
+  #searchInput{
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    height: 46px !important;
+    border-radius: 14px !important;
+  }
+
+  /* acciones header */
+  .top-actions{
+    width: 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    margin: 0 !important;
+  }
+
+  .top-actions > *{
+    flex: 0 0 auto !important;
+  }
+
+  .badge-role,
+  #roleBadge{
+    white-space: nowrap !important;
+  }
+
+  .user-chip,
+  .top-user,
+  .user-menu{
+    max-width: 100% !important;
+    white-space: nowrap !important;
+  }
+
+  .btn-logout,
+  .logout-btn,
+  button[onclick="doLogout()"]{
+    margin-left: auto !important;
+    white-space: nowrap !important;
+  }
+
+  /* Sidebar / menú servicios */
+  .sidebar{
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    position: relative !important;
+    padding: 0 14px !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+
+  .side-section{
+    background: #ffffff !important;
+    border: 1px solid #ece7df !important;
+    border-radius: 16px !important;
+    padding: 12px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .side-section + .side-section{
+    margin-top: 12px !important;
+  }
+
+  .side-title{
+    margin: 0 0 10px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    letter-spacing: .08em !important;
+    text-transform: uppercase !important;
+    color: #8a847b !important;
+  }
+
+  /* menú horizontal limpio */
+  .side-list,
+  .sidebar nav{
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding-bottom: 4px !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  .side-list::-webkit-scrollbar,
+  .sidebar nav::-webkit-scrollbar{
+    display: none !important;
+  }
+
+  .side-item{
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+    min-width: max-content !important;
+    border-radius: 999px !important;
+  }
+
+  /* Main content */
+  .content,
+  .main,
+  .main-content,
+  .dashboard-main{
+    width: 100% !important;
+    padding: 0 14px 24px !important;
+    margin: 0 !important;
+  }
+
+  /* KPIs */
+  .stats-grid,
+  .kpi-grid,
+  .summary-grid{
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 12px !important;
+    margin-top: 0 !important;
+  }
+
+  /* Encabezado de sección */
+  .section-head,
+  .page-head,
+  .section-header{
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .section-head .btn,
+  .page-head .btn,
+  .section-header .btn,
+  .section-head button,
+  .page-head button,
+  .section-header button{
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Cards proveedores */
+  #cardsGrid{
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    width: 100% !important;
+  }
+
+  .provider-card,
+  .card{
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Botones internos cards */
+  .card-actions,
+  .provider-actions{
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+
+  .card-actions .btn,
+  .provider-actions .btn,
+  .card-actions button,
+  .provider-actions button{
+    width: 100% !important;
+  }
+}
+
+
+/* ---------- TABLET ---------- */
+@media (min-width: 769px) and (max-width: 1100px){
+
+  .app-shell,
+  .layout,
+  .dashboard-layout,
+  .catalog-layout{
+    display: grid !important;
+    grid-template-columns: 260px 1fr !important;
+    gap: 18px !important;
+  }
+
+  .topbar{
+    display: grid !important;
+    grid-template-columns: auto 1fr auto !important;
+    gap: 12px !important;
+    align-items: center !important;
+  }
+
+  .search{
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .search input,
+  #searchInput{
+    width: 100% !important;
+  }
+
+  .stats-grid,
+  .kpi-grid,
+  .summary-grid{
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 14px !important;
+  }
+
+  #cardsGrid{
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 18px !important;
   }
 }
 
