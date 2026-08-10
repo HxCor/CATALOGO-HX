@@ -3301,6 +3301,122 @@ aside,
     color: var(--accent) !important;
   }
 }
+/* =========================================================
+   MOBILE PREMIUM 13 — FIX ENCIMADO HEADER SUPERIOR
+========================================================= */
+@media (max-width: 600px){
+
+  html, body{
+    overflow-x: hidden !important;
+  }
+
+  #screenApp{
+    width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Header superior limpio */
+  #screenApp .topbar,
+  .topbar{
+    position: relative !important;
+    z-index: 50 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    width: 100% !important;
+    padding: 14px 14px 16px !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    border-bottom: 1px solid var(--border) !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+  }
+
+  .brand{
+    width: 100% !important;
+    height: auto !important;
+    min-height: 34px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+  }
+
+  .search{
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+
+  #searchInput,
+  .search input{
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 48px !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    border-radius: 16px !important;
+  }
+
+  .top-actions{
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1.3fr auto !important;
+    gap: 8px !important;
+    align-items: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #roleBadge,
+  .badge-role{
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 36px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .user-chip,
+  .top-user,
+  .user-menu{
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 38px !important;
+    overflow: hidden !important;
+  }
+
+  .btn-logout,
+  .logout-btn,
+  button[onclick="doLogout()"]{
+    height: 38px !important;
+    min-width: 58px !important;
+    padding: 0 10px !important;
+    font-size: 11px !important;
+    white-space: nowrap !important;
+  }
+
+  /* Separación real entre header y filtros */
+  #screenApp .app{
+    display: block !important;
+    padding-top: 14px !important;
+    margin-top: 0 !important;
+  }
+
+  .sidebar,
+  #screenApp .app > aside,
+  #screenApp .app > .sidebar,
+  #screenApp .app > div:first-child{
+    margin-top: 0 !important;
+    padding-top: 14px !important;
+  }
+
+  .side-section:first-child{
+    margin-top: 0 !important;
+  }
+}
 
 </style>
 </head>
