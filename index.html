@@ -3417,6 +3417,109 @@ aside,
     margin-top: 0 !important;
   }
 }
+/* =========================================================
+   MOBILE PREMIUM 14 — HEADER COMPLETO SIN ENCIMARSE
+========================================================= */
+@media (max-width: 600px){
+
+  #screenApp .topbar,
+  .topbar{
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    padding: 14px !important;
+    margin: 0 !important;
+    background: #fff !important;
+    border-bottom: 1px solid var(--border) !important;
+    overflow: visible !important;
+    position: relative !important;
+    z-index: 60 !important;
+    box-sizing: border-box !important;
+  }
+
+  .brand{
+    display: flex !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 34px !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+  }
+
+  .search{
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  #searchInput,
+  .search input{
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: 48px !important;
+    box-sizing: border-box !important;
+    border-radius: 16px !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  .top-actions{
+    display: grid !important;
+    grid-template-columns: 1fr 1.25fr auto !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    align-items: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  #roleBadge,
+  .badge-role{
+    height: 36px !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+  }
+
+  .user-chip,
+  .top-user,
+  .user-menu{
+    height: 38px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    white-space: nowrap !important;
+  }
+
+  .btn-logout,
+  .logout-btn,
+  button[onclick="doLogout()"]{
+    height: 38px !important;
+    min-width: 58px !important;
+    padding: 0 10px !important;
+    font-size: 11px !important;
+    white-space: nowrap !important;
+  }
+
+  #screenApp .app{
+    padding-top: 14px !important;
+  }
+}
 
 </style>
 </head>
