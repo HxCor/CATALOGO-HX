@@ -3610,6 +3610,53 @@ aside,
     border-radius: 24px !important;
   }
 }
+/* =========================================================
+   LOGIN FINAL COMPACTO — FUERA DE MEDIA
+========================================================= */
+#screenLogin{
+  min-height: 100vh !important;
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 24px !important;
+  box-sizing: border-box !important;
+}
+
+#screenLogin > .login-card,
+#screenLogin .login-card{
+  width: 520px !important;
+  max-width: 520px !important;
+  min-width: 520px !important;
+  flex: 0 0 520px !important;
+  margin: 0 auto !important;
+  padding: 34px 30px !important;
+  border-radius: 28px !important;
+  box-sizing: border-box !important;
+}
+
+#screenLogin .login-card input,
+#screenLogin .login-card button{
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 600px){
+  #screenLogin{
+    padding: 16px !important;
+  }
+
+  #screenLogin > .login-card,
+  #screenLogin .login-card{
+    width: 100% !important;
+    max-width: 420px !important;
+    min-width: 0 !important;
+    flex: 0 1 420px !important;
+    padding: 26px 18px !important;
+    border-radius: 24px !important;
+  }
+}
 
 </style>
 </head>
