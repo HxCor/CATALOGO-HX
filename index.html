@@ -2757,6 +2757,98 @@ aside,
     gap: 18px !important;
   }
 }
+/* =========================================================
+   FIX MOBILE — OCULTAR ADMIN SI NO ES ADMIN + RUBROS LARGOS
+========================================================= */
+@media (max-width: 600px){
+
+  /* Respeta el display:none que pone JavaScript para consultores */
+  #adminSideDiv[style*="display: none"],
+  #adminSideSection[style*="display: none"],
+  #adminAddBtn[style*="display: none"]{
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+
+  /* Menú de rubros más largo y limpio */
+  .sidebar,
+  #screenApp .app > aside,
+  #screenApp .app > .sidebar,
+  #screenApp .app > div:first-child{
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+  }
+
+  .side-section{
+    width: 100% !important;
+    display: block !important;
+    padding: 14px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .side-title{
+    display: block !important;
+    width: 100% !important;
+    margin: 0 0 12px 0 !important;
+    font-size: 11px !important;
+    font-weight: 900 !important;
+    letter-spacing: 1.7px !important;
+    text-transform: uppercase !important;
+    color: #8a8780 !important;
+  }
+
+  .side-list,
+  .sidebar nav,
+  .side-section > div:not(.side-title){
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 10px !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 0 2px 6px 2px !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  .side-list::-webkit-scrollbar,
+  .sidebar nav::-webkit-scrollbar,
+  .side-section > div:not(.side-title)::-webkit-scrollbar{
+    display: none !important;
+  }
+
+  .side-item{
+    flex: 0 0 auto !important;
+    min-width: max-content !important;
+    max-width: none !important;
+    white-space: nowrap !important;
+    padding: 10px 18px !important;
+    min-height: 40px !important;
+    border-radius: 999px !important;
+    font-size: 14px !important;
+    font-weight: 800 !important;
+  }
+
+  .side-item span,
+  .side-item div{
+    white-space: nowrap !important;
+  }
+
+  .side-item .count,
+  .side-count,
+  .badge-count{
+    flex: 0 0 auto !important;
+    margin-left: 8px !important;
+  }
+}
 
 </style>
 </head>
