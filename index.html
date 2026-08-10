@@ -3520,6 +3520,49 @@ aside,
     padding-top: 14px !important;
   }
 }
+/* ===== RESTAURAR LOGIN COMPACTO ===== */
+#screenLogin{
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px !important;
+}
+
+#screenLogin .login-card,
+#screenLogin .login-box,
+#screenLogin .auth-card,
+#screenLogin .panel-login,
+#screenLogin .card-login{
+  width: min(100%, 820px) !important;
+  max-width: 760px !important;
+  margin: 0 auto !important;
+  padding: 34px 30px !important;
+  border-radius: 28px !important;
+}
+
+#screenLogin input,
+#screenLogin button{
+  width: 100% !important;
+}
+
+/* ===== SOLO en celular ===== */
+@media (max-width: 600px){
+  #screenLogin{
+    padding: 16px !important;
+  }
+
+  #screenLogin .login-card,
+  #screenLogin .login-box,
+  #screenLogin .auth-card,
+  #screenLogin .panel-login,
+  #screenLogin .card-login{
+    width: 100% !important;
+    max-width: 420px !important;
+    padding: 24px 18px !important;
+    border-radius: 22px !important;
+  }
+}
 
 </style>
 </head>
