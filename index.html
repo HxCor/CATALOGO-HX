@@ -2948,6 +2948,168 @@ aside,
     border-radius: 999px !important;
   }
 }
+/* =========================================================
+   MOBILE PREMIUM 10 — RUBROS FULL WIDTH + HEADER SIN EMPALME
+========================================================= */
+@media (max-width: 600px){
+
+  .topbar{
+    position: relative !important;
+    z-index: 30 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 14px !important;
+    background: #fff !important;
+    border-bottom: 1px solid var(--border) !important;
+    margin-bottom: 0 !important;
+  }
+
+  .brand{
+    width: 100% !important;
+    flex: 0 0 auto !important;
+  }
+
+  .search{
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 0 0 auto !important;
+  }
+
+  #searchInput{
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 46px !important;
+    border-radius: 15px !important;
+    box-sizing: border-box !important;
+  }
+
+  .top-actions{
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1.2fr auto !important;
+    gap: 8px !important;
+    align-items: center !important;
+    margin: 0 !important;
+  }
+
+  /* Sidebar mobile como bloque de filtros */
+  .sidebar,
+  #screenApp .app > aside,
+  #screenApp .app > .sidebar,
+  #screenApp .app > div:first-child{
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 14px 10px !important;
+    margin: 0 !important;
+    background: #f6f5f2 !important;
+    overflow: visible !important;
+  }
+
+  .side-section{
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 14px 12px !important;
+    margin: 0 0 14px 0 !important;
+    background: #fff !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 18px !important;
+    box-shadow: 0 6px 18px rgba(15,23,42,.05) !important;
+    overflow: hidden !important;
+  }
+
+  .side-title{
+    display: block !important;
+    width: 100% !important;
+    margin: 0 0 12px 0 !important;
+    font-size: 11px !important;
+    font-weight: 900 !important;
+    letter-spacing: 1.7px !important;
+    text-transform: uppercase !important;
+    color: #8a8780 !important;
+  }
+
+  .side-list,
+  .sidebar nav,
+  .side-section > div:not(.side-title){
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 12px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 2px 0 10px 0 !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  .side-list::-webkit-scrollbar,
+  .sidebar nav::-webkit-scrollbar,
+  .side-section > div:not(.side-title)::-webkit-scrollbar{
+    display: none !important;
+  }
+
+  .side-item{
+    flex: 0 0 auto !important;
+    min-width: max-content !important;
+    width: auto !important;
+    max-width: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    padding: 12px 22px !important;
+    min-height: 44px !important;
+    border-radius: 999px !important;
+    white-space: nowrap !important;
+    font-size: 14px !important;
+    font-weight: 850 !important;
+  }
+
+  .side-item span,
+  .side-item div{
+    white-space: nowrap !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+
+  .side-item .count,
+  .side-count,
+  .badge-count{
+    flex: 0 0 auto !important;
+    margin-left: 8px !important;
+    padding: 3px 9px !important;
+    border-radius: 999px !important;
+  }
+
+  body.is-viewer #adminSideDiv,
+  body.is-viewer #adminSideSection,
+  body.is-viewer #adminAddBtn{
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+  }
+
+  .content,
+  main,
+  .main-content,
+  .page-content,
+  #screenApp .app > div:nth-child(2){
+    padding-top: 18px !important;
+  }
+}
 
 </style>
 </head>
