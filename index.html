@@ -3750,6 +3750,62 @@ body.logged-in #screenApp{
   height: auto !important;
   min-height: 100vh !important;
 }
+/* =========================================================
+   FIX FINAL: OCULTAR DASHBOARD ANTES DEL LOGIN
+========================================================= */
+
+/* Antes de iniciar sesión: solo login */
+body:not(.logged-in) #screenApp,
+body:not(.logged-in) .topbar,
+body:not(.logged-in) .app,
+body:not(.logged-in) .sidebar,
+body:not(.logged-in) .main-content,
+body:not(.logged-in) .content,
+body:not(.logged-in) .page-content,
+body:not(.logged-in) .stats-grid,
+body:not(.logged-in) #cardsGrid{
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Antes de login: evitar que se pueda bajar y ver dashboard */
+body:not(.logged-in){
+  overflow: hidden !important;
+}
+
+/* Login visible antes de iniciar sesión */
+body:not(.logged-in) #screenLogin{
+  display: flex !important;
+  visibility: visible !important;
+  min-height: 100vh !important;
+}
+
+/* Después de iniciar sesión: ocultar login */
+body.logged-in #screenLogin{
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Después de iniciar sesión: permitir scroll normal */
+body.logged-in{
+  overflow: auto !important;
+}
+
+/* Después de iniciar sesión: mostrar dashboard */
+body.logged-in #screenApp{
+  display: block !important;
+  visibility: visible !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow: visible !important;
+}
 
 </style>
 </head>
