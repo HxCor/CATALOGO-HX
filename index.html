@@ -3110,6 +3110,139 @@ aside,
     padding-top: 18px !important;
   }
 }
+/* =========================================================
+   MOBILE PREMIUM 11 — HEADER EN FILAS + RUBROS 2 COLUMNAS
+========================================================= */
+@media (max-width: 600px){
+
+  /* Header mobile real: logo arriba, buscador abajo, usuario abajo */
+  #screenApp .topbar,
+  .topbar{
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto auto auto !important;
+    gap: 12px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 14px !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  #screenApp .topbar > *,
+  .topbar > *{
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  #screenApp .brand,
+  .brand{
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    width: 100% !important;
+  }
+
+  #screenApp .search,
+  .search{
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  #screenApp #searchInput,
+  #searchInput,
+  .search input{
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: 46px !important;
+    box-sizing: border-box !important;
+    border-radius: 15px !important;
+  }
+
+  #screenApp .top-actions,
+  .top-actions{
+    display: grid !important;
+    grid-template-columns: 1fr 1.25fr auto !important;
+    gap: 8px !important;
+    align-items: center !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+
+  /* Rubros como grid de 2 columnas, sin texto cortado */
+  .side-section{
+    overflow: visible !important;
+  }
+
+  .side-title{
+    display: block !important;
+    margin-bottom: 12px !important;
+  }
+
+  .side-list,
+  .sidebar nav,
+  .side-section > div:not(.side-title){
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .side-item{
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    padding: 11px 12px !important;
+    border-radius: 14px !important;
+    font-size: 13px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+  }
+
+  .side-item span,
+  .side-item div{
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .side-count,
+  .badge-count,
+  .side-item .count{
+    flex: 0 0 auto !important;
+    margin-left: 6px !important;
+  }
+
+  /* Ocultar admin para consultor */
+  body.is-viewer #adminSideDiv,
+  body.is-viewer #adminSideSection,
+  body.is-viewer #adminAddBtn{
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+  }
+}
 
 </style>
 </head>
