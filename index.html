@@ -4773,10 +4773,18 @@ document.getElementById("loginPass").addEventListener("keydown", e=>{
 });
 
 loadUsersFromAirtable();
+// Estado inicial: mostrar solo login antes de iniciar sesión
+currentUser = null;
+document.body.classList.remove("logged—in");
 
+document.getElementById("screenLogin").classList.add("active");
+document.getElementById("screenLogin").style.display = "flex";
+
+document.getElementById("screenApp").classList.remove("active");
+document.getElementById("screenApp").style.display = "none";
 function doLogout() {
   currentUser = null;
-  document.body.classList.remove("logged-in");
+  document.body.classList.remove("logged—in");
 
   document.getElementById("screenApp").classList.remove("active");
   document.getElementById("screenApp").style.display = "none";
