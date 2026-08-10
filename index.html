@@ -3243,6 +3243,64 @@ aside,
     border: 0 !important;
   }
 }
+/* =========================================================
+   MOBILE PREMIUM 12 — RUBROS MÁS LIMPIOS SIN CORTE
+========================================================= */
+@media (max-width: 600px){
+
+  .side-section{
+    padding: 14px !important;
+    overflow: hidden !important;
+  }
+
+  .side-list,
+  .sidebar nav,
+  .side-section > div:not(.side-title){
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    overflow: visible !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .side-item{
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    display: grid !important;
+    grid-template-columns: auto 1fr auto !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 12px 14px !important;
+    border-radius: 14px !important;
+    font-size: 14px !important;
+    text-align: left !important;
+    overflow: hidden !important;
+  }
+
+  .side-item span,
+  .side-item div{
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .side-count,
+  .badge-count,
+  .side-item .count{
+    justify-self: end !important;
+    flex: 0 0 auto !important;
+    margin-left: 8px !important;
+  }
+
+  .side-item.active{
+    border: 1.5px solid #9dccb5 !important;
+    background: #e8f3ed !important;
+    color: var(--accent) !important;
+  }
+}
 
 </style>
 </head>
