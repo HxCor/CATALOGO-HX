@@ -4778,19 +4778,19 @@ currentUser = null;
 document.body.classList.remove("logged—in");
 
 document.getElementById("screenLogin").classList.add("active");
-document.getElementById("screenLogin").style.display = "flex";
+document.getElementById("screenLogin").style.setProperty("display", "flex", "important");
 
 document.getElementById("screenApp").classList.remove("active");
-document.getElementById("screenApp").style.display = "none";
+document.getElementById("screenApp").style.setProperty("display", "none", "important");
 function doLogout() {
   currentUser = null;
   document.body.classList.remove("logged—in");
 
   document.getElementById("screenApp").classList.remove("active");
-  document.getElementById("screenApp").style.display = "none";
+  document.getElementById("screenApp").style.setProperty("display", "none", "important");
 
   document.getElementById("screenLogin").classList.add("active");
-  document.getElementById("screenLogin").style.display = "flex";
+  document.getElementById("screenLogin").style.setProperty("display", "flex", "important");
 
   document.getElementById("loginUser").value = "";
   document.getElementById("loginPass").value = "";
