@@ -2849,6 +2849,105 @@ aside,
     margin-left: 8px !important;
   }
 }
+/* =========================================================
+   MOBILE PREMIUM 9 — OCULTAR ADMIN CONSULTOR + RUBROS FULL
+========================================================= */
+@media (max-width: 600px){
+
+  body.is-viewer #adminSideDiv,
+  body.is-viewer #adminSideSection,
+  body.is-viewer #adminAddBtn{
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+  }
+
+  .side-section{
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 14px !important;
+    margin: 0 0 14px 0 !important;
+    background: #fff !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 18px !important;
+    box-shadow: 0 6px 18px rgba(15,23,42,.05) !important;
+    overflow: hidden !important;
+  }
+
+  .side-title{
+    display: block !important;
+    width: 100% !important;
+    margin: 0 0 12px 0 !important;
+    font-size: 11px !important;
+    font-weight: 900 !important;
+    letter-spacing: 1.7px !important;
+    text-transform: uppercase !important;
+    color: #8a8780 !important;
+  }
+
+  .side-list,
+  .sidebar nav,
+  .side-section > div:not(.side-title){
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 12px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 0 2px 8px 2px !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  .side-list::-webkit-scrollbar,
+  .sidebar nav::-webkit-scrollbar,
+  .side-section > div:not(.side-title)::-webkit-scrollbar{
+    display: none !important;
+  }
+
+  .side-item{
+    flex: 0 0 auto !important;
+    min-width: max-content !important;
+    width: auto !important;
+    max-width: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    padding: 11px 20px !important;
+    min-height: 42px !important;
+    border-radius: 999px !important;
+    white-space: nowrap !important;
+    font-size: 14px !important;
+    font-weight: 850 !important;
+  }
+
+  .side-item span,
+  .side-item div{
+    white-space: nowrap !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+
+  .side-item .count,
+  .side-count,
+  .badge-count{
+    flex: 0 0 auto !important;
+    margin-left: 8px !important;
+    padding: 2px 8px !important;
+    border-radius: 999px !important;
+  }
+}
 
 </style>
 </head>
@@ -3880,6 +3979,8 @@ function doLogout() {
 /* ── INIT APP ── */
 function initApp() {
   const isAdmin = currentUser.rol === "admin";
+  document.body.classList.toggle("is-admin", isAdmin);
+  document.body.classList.toggle("is-viewer", !isAdmin);
   document.getElementById("roleBadge").textContent   = isAdmin ? "Administrador" : "Consultor";
   document.getElementById("roleBadge").className     = "badge-role "+(isAdmin?"badge-admin":"badge-viewer");
   document.getElementById("topAvatar").textContent   = currentUser.nombre.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
