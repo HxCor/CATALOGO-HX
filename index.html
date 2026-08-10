@@ -3716,6 +3716,40 @@ body:has(#screenApp.active) #screenLogin{
   margin: 0 !important;
   overflow: hidden !important;
 }
+/* =========================================================
+   CONTROL FINAL LOGIN / DASHBOARD
+========================================================= */
+
+/* Estado inicial: antes de iniciar sesión */
+body:not(.logged-in) #screenApp{
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Estado inicial: mostrar login */
+body:not(.logged-in) #screenLogin{
+  display: flex !important;
+}
+
+/* Estado después de login: ocultar login completamente */
+body.logged-in #screenLogin{
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Estado después de login: mostrar dashboard */
+body.logged-in #screenApp{
+  display: block !important;
+  height: auto !important;
+  min-height: 100vh !important;
+}
 
 </style>
 </head>
@@ -4651,6 +4685,7 @@ async function doLogin() {
 
   document.getElementById("screenApp").classList.add("active");
   document.getElementById("screenApp").style.display = "block";
+  document.body.classList.add("logged-in");
 
   currentCat = "all";
   searchTerm = "";
@@ -4741,6 +4776,7 @@ loadUsersFromAirtable();
 
 function doLogout() {
   currentUser = null;
+  document.body.classList.remove("logged-in");
 
   document.getElementById("screenApp").classList.remove("active");
   document.getElementById("screenApp").style.display = "none";
