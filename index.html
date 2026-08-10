@@ -2149,125 +2149,7 @@ aside,
     box-shadow: 0 8px 24px rgba(15,23,42,.06) !important;
   }
 }
-/* =========================================================
-   MOBILE PREMIUM FINAL — AJUSTE FINO 390PX
-========================================================= */
-@media (max-width: 600px){
 
-  .topbar{
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 10px !important;
-    padding: 12px !important;
-    overflow: hidden !important;
-  }
-
-  .brand{
-    width: 100% !important;
-    display: flex !important;
-    align-items: center !important;
-    gap: 10px !important;
-  }
-
-  .search{
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    box-sizing: border-box !important;
-  }
-
-  .search input,
-  #searchInput{
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    box-sizing: border-box !important;
-    height: 44px !important;
-    border-radius: 14px !important;
-  }
-
-  .top-actions{
-    width: 100% !important;
-    display: grid !important;
-    grid-template-columns: 1fr 1.3fr auto !important;
-    gap: 8px !important;
-    align-items: center !important;
-    margin: 0 !important;
-  }
-
-  #roleBadge,
-  .badge-role{
-    min-width: 0 !important;
-    width: 100% !important;
-    font-size: 9px !important;
-    padding: 8px 6px !important;
-    text-align: center !important;
-  }
-
-  .user-chip,
-  .top-user,
-  .user-menu{
-    min-width: 0 !important;
-    max-width: 100% !important;
-    width: 100% !important;
-    overflow: hidden !important;
-  }
-
-  .user-chip span,
-  .top-user span,
-  .user-menu span{
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-  }
-
-  .btn-logout,
-  .logout-btn,
-  button[onclick="doLogout()"]{
-    width: auto !important;
-    min-width: 56px !important;
-    height: 38px !important;
-    padding: 0 10px !important;
-    font-size: 11px !important;
-    border-radius: 12px !important;
-  }
-
-  .content{
-    padding: 18px 14px 90px !important;
-  }
-
-  .stats{
-    margin-top: 0 !important;
-    margin-bottom: 26px !important;
-  }
-
-  .section-head{
-    gap: 12px !important;
-  }
-
-  .section-title{
-    font-size: 24px !important;
-  }
-
-  #adminAddBtn{
-    margin-top: 4px !important;
-    width: 100% !important;
-  }
-
-  .pcard-top{
-    grid-template-columns: auto 1fr auto !important;
-    gap: 12px !important;
-  }
-
-  .pcard-name{
-    font-size: 15px !important;
-  }
-
-  .pcard-actions{
-    grid-template-columns: 1fr 1fr !important;
-  }
-}
 /* =========================================================
    MOBILE PREMIUM FINAL — AJUSTE FINO 390PX
 ========================================================= */
@@ -2458,6 +2340,151 @@ aside,
 
   .content{
     padding-top: 20px !important;
+  }
+}
+/* =========================================================
+   MOBILE MENU PREMIUM — FILTROS CON CHIPS
+========================================================= */
+@media (max-width: 600px){
+
+  .topbar{
+    position: relative !important;
+    z-index: 10 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 14px !important;
+    background: #fff !important;
+    border-bottom: 1px solid var(--border) !important;
+  }
+
+  .brand{
+    width: 100% !important;
+  }
+
+  .search,
+  #searchInput{
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .top-actions{
+    width: 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    align-items: center !important;
+  }
+
+  #screenApp .app{
+    display: block !important;
+    width: 100% !important;
+  }
+
+  /* Contenedor del menú */
+  #screenApp .app > aside,
+  #screenApp .app > .sidebar,
+  #screenApp .app > div:first-child,
+  aside,
+  .sidebar{
+    display: block !important;
+    visibility: visible !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 14px !important;
+    margin: 0 !important;
+    border: 0 !important;
+    background: #f6f5f2 !important;
+  }
+
+  /* Cada bloque: Vistas / Por rubro / Administración */
+  .side-section{
+    display: block !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 18px !important;
+    padding: 12px !important;
+    margin: 0 0 12px 0 !important;
+    box-shadow: 0 6px 18px rgba(15,23,42,.05) !important;
+  }
+
+  .side-title{
+    display: block !important;
+    width: 100% !important;
+    margin: 0 0 10px 0 !important;
+    padding: 0 !important;
+    font-size: 11px !important;
+    line-height: 1 !important;
+    font-weight: 900 !important;
+    letter-spacing: 1.6px !important;
+    text-transform: uppercase !important;
+    color: #8a8780 !important;
+  }
+
+  /* Los filtros como chips horizontales */
+  .side-list,
+  .sidebar nav,
+  .side-section > div:not(.side-title){
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 0 0 3px 0 !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  .side-list::-webkit-scrollbar,
+  .sidebar nav::-webkit-scrollbar,
+  .side-section > div:not(.side-title)::-webkit-scrollbar{
+    display: none !important;
+  }
+
+  .side-item{
+    flex: 0 0 auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    min-height: 38px !important;
+    padding: 9px 13px !important;
+    border-radius: 999px !important;
+    white-space: nowrap !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+  }
+
+  .side-item.active{
+    background: #e8f3ed !important;
+    color: var(--accent) !important;
+    border-color: #b8dec8 !important;
+  }
+
+  .side-item .count,
+  .side-count,
+  .badge-count{
+    margin-left: 4px !important;
+    font-size: 11px !important;
+  }
+
+  .content,
+  main,
+  .main-content,
+  .page-content,
+  #screenApp .app > div:nth-child(2){
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 16px 14px 90px !important;
   }
 }
 /* =========================================================
