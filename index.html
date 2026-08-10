@@ -3686,6 +3686,36 @@ aside,
 #screenApp:not(.active){
   display: none !important;
 }
+/* =========================================================
+   FIX FINAL — QUITAR ESPACIO BLANCO ENTRE LOGIN Y APP
+========================================================= */
+#screenLogin:not(.active){
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+#screenApp.active{
+  display: block !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+body:has(#screenApp.active) #screenLogin{
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
 
 </style>
 </head>
