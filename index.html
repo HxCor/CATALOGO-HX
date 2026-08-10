@@ -3810,61 +3810,6 @@ body.logged-in #screenApp{
 </style>
 </head>
 <body>
-/* =========================================================
-   FIX DEFINITIVO: LOGIN Y APP NO SE MEZCLAN
-========================================================= */
-
-/* Por defecto, la app NO existe visualmente */
-#screenApp[hidden]{
-  display: none !important;
-  visibility: hidden !important;
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-  overflow: hidden !important;
-}
-
-/* Cuando NO hay sesión, solo login */
-body:not(.logged-in){
-  overflow: hidden !important;
-}
-
-body:not(.logged-in) #screenLogin{
-  display: flex !important;
-  min-height: 100vh !important;
-}
-
-body:not(.logged-in) #screenApp{
-  display: none !important;
-  visibility: hidden !important;
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-  overflow: hidden !important;
-}
-
-/* Cuando SÍ hay sesión, solo app */
-body.logged-in{
-  overflow: auto !important;
-}
-
-body.logged-in #screenLogin{
-  display: none !important;
-  visibility: hidden !important;
-  height: 0 !important;
-  min-height: 0 !important;
-  overflow: hidden !important;
-}
-
-body.logged-in #screenApp{
-  display: block !important;
-  visibility: visible !important;
-  height: auto !important;
-  min-height: 100vh !important;
-  overflow: visible !important;
-  padding-top: 0 !important;
-  margin-top: 0 !important;
-}
 
 <!-- ══════════════════════════════
      SCREEN 1: LOGIN
