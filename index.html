@@ -3810,6 +3810,61 @@ body.logged-in #screenApp{
 </style>
 </head>
 <body>
+/* =========================================================
+   FIX DEFINITIVO: LOGIN Y APP NO SE MEZCLAN
+========================================================= */
+
+/* Por defecto, la app NO existe visualmente */
+#screenApp[hidden]{
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Cuando NO hay sesión, solo login */
+body:not(.logged-in){
+  overflow: hidden !important;
+}
+
+body:not(.logged-in) #screenLogin{
+  display: flex !important;
+  min-height: 100vh !important;
+}
+
+body:not(.logged-in) #screenApp{
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Cuando SÍ hay sesión, solo app */
+body.logged-in{
+  overflow: auto !important;
+}
+
+body.logged-in #screenLogin{
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+body.logged-in #screenApp{
+  display: block !important;
+  visibility: visible !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow: visible !important;
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
 
 <!-- ══════════════════════════════
      SCREEN 1: LOGIN
@@ -4738,14 +4793,14 @@ async function doLogin() {
   document.getElementById("loginError").style.display = "none";
 
   document.getElementById("screenLogin").classList.remove("active");
-  document.getElementById("screenLogin").style.display = "none";
+  document.getElementById("screenLogin").style.setProperty("display", "none", "important");
 
+  document.getElementById("screenApp").removeAttribute("hidden");
   document.getElementById("screenApp").classList.add("active");
-  document.getElementById("screenApp").style.display = "block";
-  document.body.classList.add("logged-in");
+  document.getElementById("screenApp").style.setProperty("display", "block", "important");
 
-  currentCat = "all";
-  searchTerm = "";
+  document.body.classList.add("logged-in");
+     window.scrollTo(0, 0);
 
   const searchInput = document.getElementById("searchInput");
   if (searchInput) searchInput.value = "";
@@ -4839,18 +4894,22 @@ document.getElementById("screenLogin").style.setProperty("display", "flex", "imp
 
 document.getElementById("screenApp").classList.remove("active");
 document.getElementById("screenApp").style.setProperty("display", "none", "important");
+document.getElementById("screenApp").setAttribute("hidden", "hidden");
 function doLogout() {
   currentUser = null;
-  document.body.classList.remove("logged—in");
+  document.body.classList.remove("logged-in");
 
   document.getElementById("screenApp").classList.remove("active");
   document.getElementById("screenApp").style.setProperty("display", "none", "important");
+  document.getElementById("screenApp").setAttribute("hidden", "hidden");
 
   document.getElementById("screenLogin").classList.add("active");
   document.getElementById("screenLogin").style.setProperty("display", "flex", "important");
 
   document.getElementById("loginUser").value = "";
   document.getElementById("loginPass").value = "";
+
+  window.scrollTo(0, 0);
 }
 
 /* ── INIT APP ── */
