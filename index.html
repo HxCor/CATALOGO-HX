@@ -3657,6 +3657,35 @@ aside,
     border-radius: 24px !important;
   }
 }
+/* =========================================================
+   FIX PANTALLAS — SOLO LOGIN O SOLO APP
+========================================================= */
+.screen{
+  display: none !important;
+  width: 100% !important;
+}
+
+.screen.active{
+  display: block !important;
+}
+
+#screenLogin.active{
+  display: flex !important;
+  min-height: 100dvh !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  box-sizing: border-box !important;
+}
+
+#screenApp.active{
+  display: block !important;
+}
+
+#screenLogin:not(.active),
+#screenApp:not(.active){
+  display: none !important;
+}
 
 </style>
 </head>
@@ -4586,8 +4615,12 @@ async function doLogin() {
   };
 
   document.getElementById("loginError").style.display = "none";
+
   document.getElementById("screenLogin").classList.remove("active");
+  document.getElementById("screenLogin").style.display = "none";
+
   document.getElementById("screenApp").classList.add("active");
+  document.getElementById("screenApp").style.display = "block";
 
   currentCat = "all";
   searchTerm = "";
@@ -4678,8 +4711,13 @@ loadUsersFromAirtable();
 
 function doLogout() {
   currentUser = null;
+
   document.getElementById("screenApp").classList.remove("active");
+  document.getElementById("screenApp").style.display = "none";
+
   document.getElementById("screenLogin").classList.add("active");
+  document.getElementById("screenLogin").style.display = "flex";
+
   document.getElementById("loginUser").value = "";
   document.getElementById("loginPass").value = "";
 }
