@@ -1,5 +1,5 @@
 name = "catalogo-hx-backend"
-main = "worker/index.js"
+main = "worker/index-fast.js"
 compatibility_date = "2026-08-19"
 workers_dev = true
 
@@ -12,5 +12,6 @@ AIRTABLE_TABLE_USUARIOS = "USUARIOS"
 # Secrets are NOT stored in this repository.
 # Required in Cloudflare Worker Settings > Variables and Secrets:
 # - AIRTABLE_TOKEN
-# Recommended:
+# Recommended for future rotation isolation:
+# - PASSWORD_PEPPER
 # - SESSION_SECRET
