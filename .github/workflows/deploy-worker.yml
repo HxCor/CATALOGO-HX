@@ -1,5 +1,6 @@
 name: Deploy Catalogo HX Worker
 
+# Deployment credentials configured in GitHub Actions secrets.
 on:
   push:
     branches: [main]
