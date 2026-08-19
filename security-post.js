@@ -10,6 +10,7 @@
     delete copy.password;
     delete copy['Contraseña'];
     delete copy['contraseña'];
+    delete copy['Password Hash'];
     return copy;
   }
 
@@ -21,6 +22,20 @@
   window.saveUsers = function(arr) {
     const clean = Array.isArray(arr) ? arr.map(cleanUserForStorage) : [];
     localStorage.setItem(USERS_KEY, JSON.stringify(clean));
+  };
+
+  // Después de un login admin válido, cargar la lista de usuarios ya autorizada.
+  // El backend endurecido nunca devuelve Contraseña ni Password Hash.
+  const originalDoLogin = window.doLogin;
+  window.doLogin = async function(...args) {
+    await originalDoLogin(...args);
+    if (HX_SESSION_TOKEN && currentUser?.rol === 'admin') {
+      try {
+        await loadUsersFromAirtable();
+      } catch (error) {
+        console.warn('No se pudo actualizar la lista de usuarios después del login.', error);
+      }
+    }
   };
 
   // Logout completo: elimina también el token de sesión.
