@@ -1,0 +1,50 @@
+name: Security regression check
+
+on:
+  push:
+    branches: [main, security-hardening-20260819]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  security-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate JavaScript syntax
+        run: |
+          node --check security-pre.js
+          node --check security-post.js
+
+      - name: Validate secure bootstrap
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const app = fs.readFileSync('app.html', 'utf8');
+          const boot = fs.readFileSync('index.html', 'utf8');
+          const pre = fs.readFileSync('security-pre.js', 'utf8');
+          const post = fs.readFileSync('security-post.js', 'utf8');
+
+          const required = [
+            [app.includes('<script>\nconst LOGOS'), 'app.html main script marker'],
+            [boot.includes('security-pre.js'), 'bootstrap injects security-pre.js'],
+            [boot.includes('security-post.js'), 'bootstrap injects security-post.js'],
+            [pre.includes("key === USERS_KEY"), 'password persistence interception'],
+            [post.includes("sessionStorage.removeItem('hxSessionToken')"), 'logout clears session token'],
+            [post.includes("toLowerCase() === 'admin'"), 'admin protection by username'],
+            [post.includes('aplicarPermisosUsuario(getProveedores())'), 'sidebar permission filtering']
+          ];
+
+          for (const [ok, label] of required) {
+            if (!ok) {
+              console.error('FAIL:', label);
+              process.exit(1);
+            }
+            console.log('PASS:', label);
+          }
+          NODE
