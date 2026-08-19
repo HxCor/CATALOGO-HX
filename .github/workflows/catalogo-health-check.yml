@@ -1,5 +1,6 @@
 name: Catalogo HX Health Check
 
+# Post-deployment verification for GitHub Pages and Cloudflare Worker.
 on:
   push:
     branches: [main]
