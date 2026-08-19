@@ -1,0 +1,2 @@
+DEPLOY_STATUS=SKIPPED_MISSING_CLOUDFLARE_SECRETS
+No Cloudflare deployment credentials are configured in GitHub secrets.
