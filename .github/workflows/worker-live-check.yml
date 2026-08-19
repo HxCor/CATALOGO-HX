@@ -1,0 +1,61 @@
+name: Worker live smoke test
+
+on:
+  push:
+    paths:
+      - '.github/workflows/worker-live-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test deployed Worker
+        shell: bash
+        run: |
+          set +e
+          API='https://catalogo-hx-backend.armando-avila.workers.dev'
+          OUT='worker-live-result.txt'
+          FAIL=0
+          : > "$OUT"
+
+          ROOT_CODE=$(curl -sS --max-time 20 -o /tmp/root.json -w '%{http_code}' "$API/")
+          echo "ROOT_HTTP=$ROOT_CODE" >> "$OUT"
+          if [ "$ROOT_CODE" = '200' ] && grep -q 'hmac-sha256-v1' /tmp/root.json; then
+            echo 'ROOT_SECURITY_MARKER=PASS' >> "$OUT"
+          else
+            echo 'ROOT_SECURITY_MARKER=FAIL' >> "$OUT"
+            FAIL=1
+          fi
+
+          USERS_CODE=$(curl -sS --max-time 20 -o /tmp/users.json -w '%{http_code}' "$API/usuarios")
+          echo "USERS_UNAUTH_HTTP=$USERS_CODE" >> "$OUT"
+          if [ "$USERS_CODE" = '401' ] || [ "$USERS_CODE" = '403' ]; then
+            echo 'USERS_UNAUTH_PROTECTION=PASS' >> "$OUT"
+          else
+            echo 'USERS_UNAUTH_PROTECTION=FAIL' >> "$OUT"
+            FAIL=1
+          fi
+
+          LOGIN_CODE=$(curl -sS --max-time 20 -o /tmp/login.json -w '%{http_code}' -X POST "$API/login" -H 'Content-Type: application/json' --data '{"usuario":"__invalid_smoke__","password":"invalid"}')
+          echo "INVALID_LOGIN_HTTP=$LOGIN_CODE" >> "$OUT"
+          if [ "$LOGIN_CODE" = '401' ]; then
+            echo 'INVALID_LOGIN_REJECTED=PASS' >> "$OUT"
+          else
+            echo 'INVALID_LOGIN_REJECTED=FAIL' >> "$OUT"
+            FAIL=1
+          fi
+
+          if [ "$FAIL" = '0' ]; then echo 'OVERALL=PASS' >> "$OUT"; else echo 'OVERALL=FAIL' >> "$OUT"; fi
+
+      - name: Persist smoke result
+        run: |
+          git config user.name 'github-actions'
+          git config user.email 'github-actions@github.com'
+          git add worker-live-result.txt
+          git commit -m 'Update Worker live smoke result' || exit 0
+          git push
