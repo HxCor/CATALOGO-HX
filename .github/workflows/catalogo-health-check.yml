@@ -1,0 +1,143 @@
+name: Catalogo HX Health Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/catalogo-health-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run production health checks
+        id: checks
+        shell: bash
+        run: |
+          set +e
+          FAIL=0
+          RESULT_FILE="health-check-result.txt"
+          : > "$RESULT_FILE"
+
+          record() {
+            echo "$1" | tee -a "$RESULT_FILE"
+          }
+
+          PAGES_URL="https://hxcor.github.io/CATALOGO-HX/"
+          API_BASE="https://catalogo-hx-backend.armando-avila.workers.dev"
+          ORIGIN="https://hxcor.github.io"
+
+          # 1) GitHub Pages availability and expected app shell.
+          PAGES_CODE=$(curl -L -sS --max-time 20 -o /tmp/catalogo.html -w "%{http_code}" "$PAGES_URL")
+          record "PAGES_HTTP=$PAGES_CODE"
+          if [ "$PAGES_CODE" = "200" ]; then
+            record "PAGES_REACHABLE=PASS"
+          else
+            record "PAGES_REACHABLE=FAIL"
+            FAIL=1
+          fi
+
+          if grep -q "Catálogo 2026" /tmp/catalogo.html 2>/dev/null; then
+            record "PAGES_APP_MARKER=PASS"
+          else
+            record "PAGES_APP_MARKER=FAIL"
+            FAIL=1
+          fi
+
+          # 2) Sensitive API endpoints should not be readable without authentication.
+          for PATH_NAME in usuarios proveedores bancos; do
+            CODE=$(curl -sS --max-time 20 -o /tmp/${PATH_NAME}.json -w "%{http_code}" "$API_BASE/$PATH_NAME")
+            UPPER=$(echo "$PATH_NAME" | tr '[:lower:]' '[:upper:]')
+            record "API_${UPPER}_UNAUTH_HTTP=$CODE"
+            case "$CODE" in
+              401|403)
+                record "API_${UPPER}_UNAUTH_PROTECTION=PASS"
+                ;;
+              *)
+                record "API_${UPPER}_UNAUTH_PROTECTION=FAIL"
+                FAIL=1
+                ;;
+            esac
+          done
+
+          # 3) Invalid credentials must never produce a successful login or token.
+          LOGIN_CODE=$(curl -sS --max-time 20 \
+            -o /tmp/login.json \
+            -w "%{http_code}" \
+            -X POST "$API_BASE/login" \
+            -H 'Content-Type: application/json' \
+            --data '{"usuario":"__healthcheck_invalid__","password":"invalid-healthcheck-password"}')
+          record "INVALID_LOGIN_HTTP=$LOGIN_CODE"
+
+          if grep -Eq '"ok"[[:space:]]*:[[:space:]]*true|"token"[[:space:]]*:' /tmp/login.json 2>/dev/null; then
+            record "INVALID_LOGIN_REJECTED=FAIL"
+            FAIL=1
+          else
+            record "INVALID_LOGIN_REJECTED=PASS"
+          fi
+
+          # 4) Browser CORS preflight for login (JSON POST).
+          curl -sS --max-time 20 -D /tmp/cors-login.headers -o /dev/null \
+            -X OPTIONS "$API_BASE/login" \
+            -H "Origin: $ORIGIN" \
+            -H 'Access-Control-Request-Method: POST' \
+            -H 'Access-Control-Request-Headers: content-type'
+
+          LOGIN_ACAO=$(awk 'BEGIN{IGNORECASE=1} /^access-control-allow-origin:/ {sub(/^[^:]*:[[:space:]]*/,""); gsub(/\r/,""); print; exit}' /tmp/cors-login.headers)
+          record "CORS_LOGIN_ALLOW_ORIGIN=${LOGIN_ACAO:-MISSING}"
+          if [ "$LOGIN_ACAO" = "$ORIGIN" ] || [ "$LOGIN_ACAO" = "*" ]; then
+            record "CORS_LOGIN=PASS"
+          else
+            record "CORS_LOGIN=FAIL"
+            FAIL=1
+          fi
+
+          # 5) Authenticated API requests use Authorization, so preflight must allow it.
+          curl -sS --max-time 20 -D /tmp/cors-api.headers -o /dev/null \
+            -X OPTIONS "$API_BASE/proveedores" \
+            -H "Origin: $ORIGIN" \
+            -H 'Access-Control-Request-Method: GET' \
+            -H 'Access-Control-Request-Headers: authorization,content-type'
+
+          API_ACAO=$(awk 'BEGIN{IGNORECASE=1} /^access-control-allow-origin:/ {sub(/^[^:]*:[[:space:]]*/,""); gsub(/\r/,""); print; exit}' /tmp/cors-api.headers)
+          API_ACAH=$(awk 'BEGIN{IGNORECASE=1} /^access-control-allow-headers:/ {sub(/^[^:]*:[[:space:]]*/,""); gsub(/\r/,""); print; exit}' /tmp/cors-api.headers)
+          record "CORS_API_ALLOW_ORIGIN=${API_ACAO:-MISSING}"
+          record "CORS_API_ALLOW_HEADERS=${API_ACAH:-MISSING}"
+
+          if { [ "$API_ACAO" = "$ORIGIN" ] || [ "$API_ACAO" = "*" ]; } && echo "$API_ACAH" | grep -qi 'authorization'; then
+            record "CORS_AUTHORIZATION=PASS"
+          else
+            record "CORS_AUTHORIZATION=FAIL"
+            FAIL=1
+          fi
+
+          if [ "$FAIL" -eq 0 ]; then
+            record "OVERALL=PASS"
+          else
+            record "OVERALL=FAIL"
+          fi
+
+          echo "fail=$FAIL" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Save health-check result
+        if: always()
+        shell: bash
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add health-check-result.txt
+          git commit -m "Update Catalogo HX health check result" || exit 0
+          git push
+
+      - name: Mark workflow failed when a check failed
+        if: steps.checks.outputs.fail == '1'
+        shell: bash
+        run: exit 1
