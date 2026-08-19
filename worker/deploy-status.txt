@@ -1,2 +1,5 @@
-DEPLOY_STATUS=SKIPPED_MISSING_CLOUDFLARE_SECRETS
-No Cloudflare deployment credentials are configured in GitHub secrets.
+DEPLOY_STATUS=SUCCESS
+DEPLOYED_AT_UTC=2026-08-19T23:28:17Z
+Uploaded catalogo-hx-backend (1.13 sec)
+Deployed catalogo-hx-backend triggers (0.42 sec)
+  https://catalogo-hx-backend.armando-avila.workers.dev
