@@ -1,0 +1,57 @@
+name: Deploy Catalogo HX Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'worker/index.js'
+      - 'wrangler.toml'
+      - '.github/workflows/deploy-worker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Deploy if Cloudflare credentials exist
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set +e
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "DEPLOY_STATUS=SKIPPED_MISSING_CLOUDFLARE_SECRETS" > worker/deploy-status.txt
+            echo "No Cloudflare deployment credentials are configured in GitHub secrets." >> worker/deploy-status.txt
+            exit 0
+          fi
+
+          npx --yes wrangler@4 deploy > /tmp/wrangler.log 2>&1
+          RC=$?
+          if [ $RC -eq 0 ]; then
+            echo "DEPLOY_STATUS=SUCCESS" > worker/deploy-status.txt
+            echo "DEPLOYED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> worker/deploy-status.txt
+            grep -E 'https://.*workers.dev|Uploaded|Deployed' /tmp/wrangler.log | tail -n 8 >> worker/deploy-status.txt || true
+          else
+            echo "DEPLOY_STATUS=FAILED" > worker/deploy-status.txt
+            echo "DEPLOYED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> worker/deploy-status.txt
+            tail -n 30 /tmp/wrangler.log >> worker/deploy-status.txt
+          fi
+          exit 0
+
+      - name: Persist deploy status
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add worker/deploy-status.txt
+          git commit -m "Update Worker deployment status" || echo "No status change"
+          git push
