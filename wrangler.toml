@@ -1,0 +1,16 @@
+name = "catalogo-hx-backend"
+main = "worker/index.js"
+compatibility_date = "2026-08-19"
+workers_dev = true
+
+[vars]
+AIRTABLE_BASE_ID = "appVZGkndj6o8CyV0"
+AIRTABLE_TABLE_PROVEEDORES = "Proveedores"
+AIRTABLE_TABLE_BANCOS = "BANCOS"
+AIRTABLE_TABLE_USUARIOS = "USUARIOS"
+
+# Secrets are NOT stored in this repository.
+# Required in Cloudflare Worker Settings > Variables and Secrets:
+# - AIRTABLE_TOKEN
+# Recommended:
+# - SESSION_SECRET
