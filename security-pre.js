@@ -2,7 +2,7 @@
   'use strict';
 
   const USERS_KEY = 'hx_users';
-  const sensitiveKeys = new Set(['pass', 'password', 'contraseña', 'contrasena']);
+  const sensitiveKeys = new Set(['pass', 'password', 'contraseña', 'contrasena', 'password hash']);
 
   function sanitize(value) {
     if (Array.isArray(value)) return value.map(sanitize);
@@ -16,7 +16,7 @@
     return clean;
   }
 
-  // Elimina contraseñas que versiones anteriores pudieran haber dejado en localStorage.
+  // Elimina credenciales que versiones anteriores pudieran haber dejado en localStorage.
   try {
     const raw = localStorage.getItem(USERS_KEY);
     if (raw) {
@@ -27,7 +27,7 @@
     console.warn('No se pudo sanear el almacenamiento local de usuarios.', error);
   }
 
-  // Impide que futuras escrituras de usuarios persistan contraseñas en el navegador.
+  // Impide que futuras escrituras de usuarios persistan contraseñas o hashes en el navegador.
   const originalSetItem = Storage.prototype.setItem;
   Storage.prototype.setItem = function(key, value) {
     if (this === window.localStorage && key === USERS_KEY) {
@@ -40,18 +40,39 @@
     return originalSetItem.call(this, key, value);
   };
 
-  // Para consultas GET de usuarios, la app recibe una copia sin campos de contraseña.
-  // La autenticación /login no se altera.
+  function requestInfo(input, init) {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+    let headers;
+    try {
+      headers = new Headers((init && init.headers) || (input && input.headers) || undefined);
+    } catch (_) {
+      headers = new Headers();
+    }
+    return { url, method, authorized: Boolean(headers.get('Authorization')) };
+  }
+
+  // Evita la consulta /usuarios antes del login. La UI no necesita esa lista para autenticar;
+  // el administrador la recarga inmediatamente después de obtener una sesión válida.
   const originalFetch = window.fetch.bind(window);
   window.fetch = async function(input, init) {
+    const info = requestInfo(input, init);
+    const isUsersRead = info.method === 'GET' && /\/usuarios(?:[/?#]|$)/i.test(info.url);
+
+    if (isUsersRead && !info.authorized) {
+      return new Response(JSON.stringify({ ok: true, records: [] }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store'
+        }
+      });
+    }
+
     const response = await originalFetch(input, init);
 
     try {
-      const url = typeof input === 'string' ? input : (input && input.url) || '';
-      const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
-      const isUsersRead = method === 'GET' && /\/usuarios(?:[/?#]|$)/i.test(url);
       const isJson = (response.headers.get('content-type') || '').toLowerCase().includes('application/json');
-
       if (isUsersRead && isJson) {
         const data = await response.clone().json();
         const headers = new Headers(response.headers);
