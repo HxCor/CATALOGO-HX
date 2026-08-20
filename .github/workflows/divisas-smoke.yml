@@ -1,0 +1,107 @@
+name: Divisas HX Pro Production Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/divisas-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      API_BASE: https://catalogo-hx-backend.armando-avila.workers.dev
+      AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+      AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+      USERS_TABLE_ID: tbleeFejdXclP3md1
+      QUOTES_TABLE_ID: tblqEJCKK7Ers6GWi
+      ALERTS_TABLE_ID: tblIX9Yl8msehYbwH
+      RESULT_FILE: divisas-smoke-result.txt
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Divisas HX Pro in production
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : > "$RESULT_FILE"
+          echo "CHECKED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT_FILE"
+          ADMIN_ID=""; QUOTE_ID=""; ALERT_ID=""
+
+          cleanup() {
+            set +e
+            [ -z "${QUOTE_ID:-}" ] || curl -sS -X DELETE -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$QUOTES_TABLE_ID/$QUOTE_ID" >/dev/null 2>&1 || true
+            [ -z "${ALERT_ID:-}" ] || curl -sS -X DELETE -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$ALERTS_TABLE_ID/$ALERT_ID" >/dev/null 2>&1 || true
+            [ -z "${ADMIN_ID:-}" ] || curl -sS -X DELETE -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$ADMIN_ID" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          test -n "${AIRTABLE_TOKEN:-}"
+          test -n "${AIRTABLE_BASE_ID:-}"
+          echo "SECRETS=PASS" >> "$RESULT_FILE"
+
+          SUFFIX="$(date +%s)-$RANDOM"
+          USER="fx-admin-$SUFFIX"
+          PASS="$(openssl rand -hex 18)"
+          jq -n --arg u "$USER" --arg p "$PASS" '{records:[{fields:{"Nombre completo":"FX Smoke Admin","Usuario":$u,"Usuario (login)":$u,"Contraseña":$p,"Rol":"admin"}}]}' >/tmp/fx-admin.json
+          test "$(curl -sS -o /tmp/fx-admin-created.json -w '%{http_code}' -X POST -H "Authorization: Bearer $AIRTABLE_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/fx-admin.json "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID")" = "200"
+          ADMIN_ID="$(jq -r '.records[0].id // empty' /tmp/fx-admin-created.json)"
+          test -n "$ADMIN_ID"
+
+          jq -n --arg usuario "$USER" --arg password "$PASS" '{usuario:$usuario,password:$password}' >/tmp/fx-login.json
+          test "$(curl -sS -o /tmp/fx-login-response.json -w '%{http_code}' -X POST -H 'Content-Type: application/json' --data-binary @/tmp/fx-login.json "$API_BASE/login")" = "200"
+          TOKEN="$(jq -r '.token // empty' /tmp/fx-login-response.json)"
+          test -n "$TOKEN"
+          echo "LOGIN=PASS" >> "$RESULT_FILE"
+
+          CURRENT_CODE="$(curl -sS -o /tmp/fx-current.json -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$API_BASE/divisas/current?refresh=1")"
+          test "$CURRENT_CODE" = "200"
+          test "$(jq -r '.ok' /tmp/fx-current.json)" = "true"
+          jq -e '.data.average > 0 and .data.buy > 0 and .data.sell > 0 and .data.source == "eldolar.info"' /tmp/fx-current.json >/dev/null
+          echo "LIVE_RATE=PASS" >> "$RESULT_FILE"
+
+          HISTORY_CODE="$(curl -sS -o /tmp/fx-history.json -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$API_BASE/divisas/history?days=7")"
+          test "$HISTORY_CODE" = "200"
+          jq -e '.points | length >= 1' /tmp/fx-history.json >/dev/null
+          echo "HISTORY=PASS" >> "$RESULT_FILE"
+
+          jq -n '{provider:"HX",clientProject:"SMOKE TEST",origin:"USD",destination:"MXN",amount:100,rateType:"sell",adjustmentPct:0}' >/tmp/fx-quote.json
+          test "$(curl -sS -o /tmp/fx-quote-response.json -w '%{http_code}' -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/fx-quote.json "$API_BASE/divisas/quotes")" = "201"
+          QUOTE_ID="$(jq -r '.record.id // empty' /tmp/fx-quote-response.json)"
+          test -n "$QUOTE_ID"
+          jq -e '.record.fields.TipoCambioUsado > 0 and .record.fields.ResultadoConvertido > 0 and .record.fields.Fuente == "eldolar.info"' /tmp/fx-quote-response.json >/dev/null
+          echo "QUOTE=PASS" >> "$RESULT_FILE"
+
+          jq -n '{rule:"Smoke USD/MXN",condition:"gt",value:99,channel:"Panel"}' >/tmp/fx-alert.json
+          test "$(curl -sS -o /tmp/fx-alert-response.json -w '%{http_code}' -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/fx-alert.json "$API_BASE/divisas/alerts")" = "201"
+          ALERT_ID="$(jq -r '.record.id // empty' /tmp/fx-alert-response.json)"
+          test -n "$ALERT_ID"
+          echo "ALERT=PASS" >> "$RESULT_FILE"
+
+          test "$(curl -sS -o /tmp/fx-quotes-list.json -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$API_BASE/divisas/quotes")" = "200"
+          jq -e --arg id "$QUOTE_ID" '[.records[] | select(.id == $id)] | length >= 1' /tmp/fx-quotes-list.json >/dev/null
+          test "$(curl -sS -o /tmp/fx-alerts-list.json -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$API_BASE/divisas/alerts")" = "200"
+          jq -e --arg id "$ALERT_ID" '[.records[] | select(.id == $id)] | length >= 1' /tmp/fx-alerts-list.json >/dev/null
+          echo "PERSISTENCE=PASS" >> "$RESULT_FILE"
+
+          cleanup
+          QUOTE_ID=""; ALERT_ID=""; ADMIN_ID=""
+          echo "CLEANUP=PASS" >> "$RESULT_FILE"
+          echo "OVERALL=PASS" >> "$RESULT_FILE"
+          cat "$RESULT_FILE"
+
+      - name: Persist smoke result
+        if: always()
+        shell: bash
+        run: |
+          if [ ! -f divisas-smoke-result.txt ]; then printf 'CHECKED_AT_UTC=%s\nOVERALL=FAIL\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > divisas-smoke-result.txt; fi
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add divisas-smoke-result.txt
+          git commit -m "Update Divisas HX Pro smoke result" || exit 0
+          git push
