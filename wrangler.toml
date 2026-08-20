@@ -1,5 +1,5 @@
 name = "catalogo-hx-backend"
-main = "worker/index-fast.js"
+main = "worker/index-divisas.js"
 compatibility_date = "2026-08-19"
 workers_dev = true
 
@@ -8,10 +8,13 @@ AIRTABLE_BASE_ID = "appVZGkndj6o8CyV0"
 AIRTABLE_TABLE_PROVEEDORES = "Proveedores"
 AIRTABLE_TABLE_BANCOS = "BANCOS"
 AIRTABLE_TABLE_USUARIOS = "USUARIOS"
+AIRTABLE_TABLE_DIVISAS_LOG = "DIVISAS_LOG"
+AIRTABLE_TABLE_DIVISAS_COTIZACIONES = "DIVISAS_COTIZACIONES"
+AIRTABLE_TABLE_DIVISAS_ALERTAS = "DIVISAS_ALERTAS"
 
 # Secrets are NOT stored in this repository.
 # Required in Cloudflare Worker Settings > Variables and Secrets:
 # - AIRTABLE_TOKEN
-# Recommended for future rotation isolation:
+# Recommended for rotation isolation:
 # - PASSWORD_PEPPER
 # - SESSION_SECRET
