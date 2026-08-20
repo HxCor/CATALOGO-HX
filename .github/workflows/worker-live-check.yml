@@ -32,6 +32,13 @@ jobs:
             FAIL=1
           fi
 
+          if grep -q '"secretIsolation":"isolated"' /tmp/root.json; then
+            echo 'SECRET_ISOLATION=PASS' >> "$OUT"
+          else
+            echo 'SECRET_ISOLATION=FAIL' >> "$OUT"
+            FAIL=1
+          fi
+
           USERS_CODE=$(curl -sS --max-time 20 -o /tmp/users.json -w '%{http_code}' "$API/usuarios")
           echo "USERS_UNAUTH_HTTP=$USERS_CODE" >> "$OUT"
           if [ "$USERS_CODE" = '401' ] || [ "$USERS_CODE" = '403' ]; then
