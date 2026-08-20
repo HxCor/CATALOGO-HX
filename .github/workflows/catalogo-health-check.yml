@@ -9,6 +9,7 @@ on:
       - 'app.html'
       - 'security-pre.js'
       - 'security-post.js'
+      - 'mail-provider.js'
       - 'worker/**'
       - 'wrangler.toml'
       - '.github/workflows/catalogo-health-check.yml'
@@ -61,11 +62,13 @@ jobs:
             FAIL=1
           fi
 
-          # Verify the deployed browser guards, not only repository source.
+          # Verify the deployed browser guards and mail integration, not only repository source.
           PRE_CODE=$(curl -L -sS --max-time 20 -o /tmp/security-pre.js -w "%{http_code}" "$PAGES_URL/security-pre.js?v=health")
           POST_CODE=$(curl -L -sS --max-time 20 -o /tmp/security-post.js -w "%{http_code}" "$PAGES_URL/security-post.js?v=health")
+          MAIL_CODE=$(curl -L -sS --max-time 20 -o /tmp/mail-provider.js -w "%{http_code}" "$PAGES_URL/mail-provider.js?v=health")
           record "PAGES_SECURITY_PRE_HTTP=$PRE_CODE"
           record "PAGES_SECURITY_POST_HTTP=$POST_CODE"
+          record "PAGES_MAIL_PROVIDER_HTTP=$MAIL_CODE"
 
           if [ "$PRE_CODE" = "200" ] && grep -q 'isUsersRead && !info.authorized' /tmp/security-pre.js && grep -q "'password hash'" /tmp/security-pre.js; then
             record "PAGES_PRELOGIN_GUARD=PASS"
@@ -78,6 +81,13 @@ jobs:
             record "PAGES_LOGOUT_GUARD=PASS"
           else
             record "PAGES_LOGOUT_GUARD=FAIL"
+            FAIL=1
+          fi
+
+          if [ "$MAIL_CODE" = "200" ] && grep -q "gmail-web-compose" /tmp/mail-provider.js && grep -q "https://mail.google.com/mail/" /tmp/mail-provider.js && ! grep -Eqi 'client_secret|refresh_token|access_token' /tmp/mail-provider.js; then
+            record "PAGES_GMAIL_COMPOSE_INTEGRATION=PASS"
+          else
+            record "PAGES_GMAIL_COMPOSE_INTEGRATION=FAIL"
             FAIL=1
           fi
 
