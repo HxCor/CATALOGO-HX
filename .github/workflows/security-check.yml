@@ -20,6 +20,8 @@ jobs:
         run: |
           node --check security-pre.js
           node --check security-post.js
+          node --check mail-provider.js
+          node --check divisas-hx-pro.js
 
       - name: Validate secure bootstrap
         run: |
@@ -29,17 +31,21 @@ jobs:
           const boot = fs.readFileSync('index.html', 'utf8');
           const pre = fs.readFileSync('security-pre.js', 'utf8');
           const post = fs.readFileSync('security-post.js', 'utf8');
+          const fx = fs.readFileSync('divisas-hx-pro.js', 'utf8');
 
           const required = [
             [app.includes('<script>\nconst LOGOS'), 'app.html main script marker'],
             [boot.includes('security-pre.js'), 'bootstrap injects security-pre.js'],
             [boot.includes('security-post.js'), 'bootstrap injects security-post.js'],
+            [boot.includes('divisas-hx-pro.js'), 'bootstrap injects Divisas HX Pro'],
             [pre.includes("key === USERS_KEY"), 'credential persistence interception'],
             [pre.includes("'password hash'"), 'password hash removed from browser storage'],
             [pre.includes('isUsersRead && !info.authorized'), 'pre-login /usuarios request suppressed locally'],
             [post.includes("sessionStorage.removeItem('hxSessionToken')"), 'logout clears session token'],
             [post.includes("toLowerCase() === 'admin'"), 'admin protection by username'],
-            [post.includes('aplicarPermisosUsuario(getProveedores())'), 'sidebar permission filtering']
+            [post.includes('aplicarPermisosUsuario(getProveedores())'), 'sidebar permission filtering'],
+            [fx.includes("id = 'hxDivisasBtn'"), 'Divisas HX Pro menu integration'],
+            [fx.includes("api('/divisas/quotes'"), 'Divisas HX Pro quote persistence']
           ];
 
           for (const [ok, label] of required) {
