@@ -15,7 +15,7 @@
   <script>
     (async () => {
       try {
-        const response = await fetch('app.html?v=security-20260820-divisas-2', { cache: 'no-store' });
+        const response = await fetch('app.html?v=security-20260820-divisas-3', { cache: 'no-store' });
         if (!response.ok) throw new Error(`No se pudo cargar la aplicación (${response.status})`);
 
         let html = await response.text();
@@ -25,13 +25,14 @@
         const mailTag = '<scr' + 'ipt src="mail-provider.js?v=20260820"></scr' + 'ipt>\n';
         const divisasTag = '<scr' + 'ipt src="divisas-hx-pro.js?v=20260820-2"></scr' + 'ipt>\n';
         const divisasFixTag = '<scr' + 'ipt src="divisas-hx-pro-fix.js?v=20260820-1"></scr' + 'ipt>\n';
+        const divisasRefreshTag = '<scr' + 'ipt src="divisas-refresh-fix.js?v=20260820-1"></scr' + 'ipt>\n';
 
         if (!html.includes(mainMarker)) {
           throw new Error('No se encontró el punto de inserción de seguridad.');
         }
 
         html = html.replace(mainMarker, preTag + mainMarker);
-        html = html.replace('</body>', postTag + mailTag + divisasTag + divisasFixTag + '</body>');
+        html = html.replace('</body>', postTag + mailTag + divisasTag + divisasFixTag + divisasRefreshTag + '</body>');
 
         document.open();
         document.write(html);
