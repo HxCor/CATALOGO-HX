@@ -138,6 +138,100 @@
     }).join('');
   };
 
+  // Capa de correo desacoplada del proveedor de email.
+  // Hoy usa mailto: sin exponer secretos en el navegador; mañana puede apuntar a una API autenticada.
+  window.HX_MAIL_CONFIG = Object.freeze({
+    mode: 'mailto',
+    futureApiEndpoint: '/mail/send'
+  });
+
+  function normalizeProviderEmail(value) {
+    const email = String(value || '').trim();
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
+  }
+
+  window.hxComposeProviderEmail = function(provider) {
+    const email = normalizeProviderEmail(provider?.email);
+    if (!email) {
+      if (typeof showToast === 'function') showToast('Esta empresa todavía no tiene correo registrado.', 'error');
+      return false;
+    }
+
+    const empresa = String(provider?.nombre || 'Proveedor').trim();
+    const rfc = String(provider?.rfc || '').trim().toUpperCase();
+    const contacto = String(provider?.contacto || '').trim();
+    const saludo = contacto ? `Hola ${contacto},` : 'Hola,';
+    const subject = `Catálogo HX · ${empresa}${rfc ? ` · ${rfc}` : ''}`;
+    const body = [
+      saludo,
+      '',
+      `Nos ponemos en contacto con ${empresa} desde el Catálogo HX de proveedores.`,
+      rfc ? `RFC: ${rfc}` : '',
+      '',
+      'Quedamos atentos a sus comentarios.',
+      '',
+      'Saludos.'
+    ].filter((line, index, arr) => line !== '' || arr[index - 1] !== '').join('\n');
+
+    window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    return true;
+  };
+
+  function ensureMailStyles() {
+    if (document.getElementById('hx-mail-tools-style')) return;
+    const style = document.createElement('style');
+    style.id = 'hx-mail-tools-style';
+    style.textContent = `
+      .hx-email-actions{padding:10px 18px;border-top:1px solid var(--border);display:flex;gap:8px;background:rgba(26,92,58,.025)}
+      .hx-email-btn{width:100%;min-height:36px;border:1px solid rgba(26,92,58,.22);border-radius:8px;background:var(--accent-lt);color:var(--accent);font:600 12px 'Sora',sans-serif;cursor:pointer;transition:all .18s ease}
+      .hx-email-btn:hover{background:var(--accent);color:#fff;transform:translateY(-1px)}
+      @media(max-width:600px){.hx-email-actions{padding:12px 18px}.hx-email-btn{min-height:42px;border-radius:12px}}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function injectProviderEmailButtons() {
+    const grid = document.getElementById('cardsGrid');
+    if (!grid || typeof getFiltered !== 'function' || typeof aplicarPermisosUsuario !== 'function') return;
+
+    ensureMailStyles();
+    const visibleProviders = aplicarPermisosUsuario(getFiltered(currentCat, searchTerm));
+    const cards = [...grid.querySelectorAll('.pcard')];
+
+    cards.forEach((card, index) => {
+      if (card.querySelector('.hx-email-actions')) return;
+      const provider = visibleProviders[index];
+      if (!provider || !normalizeProviderEmail(provider.email)) return;
+
+      const actions = document.createElement('div');
+      actions.className = 'hx-email-actions';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'hx-email-btn';
+      button.textContent = '✉️ Preparar correo';
+      button.setAttribute('aria-label', `Preparar correo para ${provider.nombre || 'proveedor'}`);
+      button.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        window.hxComposeProviderEmail(provider);
+      });
+      actions.appendChild(button);
+
+      const adminActions = card.querySelector('.pcard-actions');
+      card.insertBefore(actions, adminActions || null);
+    });
+  }
+
+  const originalRenderCards = window.renderCards;
+  if (typeof originalRenderCards === 'function') {
+    window.renderCards = function(...args) {
+      const result = originalRenderCards(...args);
+      queueMicrotask(injectProviderEmailButtons);
+      return result;
+    };
+    queueMicrotask(injectProviderEmailButtons);
+  }
+
   // Corrige una clase antigua escrita con guion Unicode.
   document.body.classList.remove('logged—in');
 
