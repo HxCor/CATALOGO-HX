@@ -1,5 +1,5 @@
 DEPLOY_STATUS=SUCCESS
-DEPLOYED_AT_UTC=2026-08-20T00:32:16Z
-Uploaded catalogo-hx-backend (1.30 sec)
-Deployed catalogo-hx-backend triggers (0.47 sec)
+DEPLOYED_AT_UTC=2026-08-20T22:34:56Z
+Uploaded catalogo-hx-backend (1.09 sec)
+Deployed catalogo-hx-backend triggers (0.37 sec)
   https://catalogo-hx-backend.armando-avila.workers.dev
