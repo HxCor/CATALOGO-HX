@@ -1,0 +1,190 @@
+name: Catalogo HX Browser Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ui-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  browser-smoke:
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: https://hxcor.github.io/CATALOGO-HX/
+      AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+      AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+      USERS_TABLE_ID: tbleeFejdXclP3md1
+      RESULT_FILE: ui-smoke-result.txt
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install browser test runtime
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Bootstrap disposable production user
+        id: bootstrap
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : > "$RESULT_FILE"
+          echo "CHECKED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT_FILE"
+          test -n "${AIRTABLE_TOKEN:-}"
+          test -n "${AIRTABLE_BASE_ID:-}"
+
+          SUFFIX="$(date +%s)-$RANDOM"
+          USERNAME="ui-e2e-$SUFFIX"
+          PASSWORD="$(openssl rand -hex 18)"
+
+          jq -n --arg user "$USERNAME" --arg pass "$PASSWORD" \
+            '{records:[{fields:{"Nombre completo":"UI E2E Temporary Admin","Usuario":$user,"Usuario (login)":$user,"Contraseña":$pass,"Rol":"admin"}}]}' \
+            > /tmp/ui-user.json
+
+          CODE=$(curl -sS -o /tmp/ui-user-created.json -w '%{http_code}' \
+            -X POST -H "Authorization: Bearer $AIRTABLE_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/ui-user.json \
+            "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID")
+          test "$CODE" = "200"
+          USER_ID=$(jq -r '.records[0].id // empty' /tmp/ui-user-created.json)
+          test -n "$USER_ID"
+
+          echo "username=$USERNAME" >> "$GITHUB_OUTPUT"
+          echo "password=$PASSWORD" >> "$GITHUB_OUTPUT"
+          echo "user_id=$USER_ID" >> "$GITHUB_OUTPUT"
+          echo "TEMP_USER_BOOTSTRAP=PASS" >> "$RESULT_FILE"
+
+      - name: Run real browser login and dashboard checks
+        id: browser
+        env:
+          TEST_USERNAME: ${{ steps.bootstrap.outputs.username }}
+          TEST_PASSWORD: ${{ steps.bootstrap.outputs.password }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat > /tmp/ui-smoke.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import fs from 'node:fs';
+
+          const site = process.env.SITE_URL;
+          const user = process.env.TEST_USERNAME;
+          const pass = process.env.TEST_PASSWORD;
+          const resultFile = process.env.RESULT_FILE;
+
+          const append = (line) => fs.appendFileSync(resultFile, line + '\n');
+          const browser = await chromium.launch({ headless: true });
+
+          async function runViewport(label, viewport) {
+            const context = await browser.newContext({ viewport });
+            const page = await context.newPage();
+            const consoleErrors = [];
+            page.on('console', msg => {
+              if (msg.type() === 'error') consoleErrors.push(msg.text());
+            });
+            page.on('pageerror', err => consoleErrors.push(err.message));
+
+            await page.goto(`${site}?ui-smoke=${Date.now()}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+            await page.locator('#loginUser').waitFor({ state: 'visible', timeout: 30000 });
+            await page.locator('#loginUser').fill(user);
+            await page.locator('#loginPass').fill(pass);
+            await page.locator('#btnLogin').click();
+
+            await page.waitForFunction(() => document.body.classList.contains('logged-in'), null, { timeout: 30000 });
+            await page.locator('#searchInput').waitFor({ state: 'visible', timeout: 30000 });
+            await page.waitForFunction(() => {
+              const n = Number(document.querySelector('#statTotal')?.textContent || '0');
+              return Number.isFinite(n) && n > 0;
+            }, null, { timeout: 30000 });
+
+            const total = Number(await page.locator('#statTotal').textContent());
+            if (!(total > 0)) throw new Error(`${label}: no providers rendered`);
+
+            const adminVisible = await page.locator('#adminAddBtn').isVisible();
+            if (!adminVisible) throw new Error(`${label}: admin controls not visible`);
+
+            await page.locator('button[onclick="openAdminPanel()"]').click();
+            await page.locator('#adminOverlay').waitFor({ state: 'visible', timeout: 10000 });
+            await page.getByRole('button', { name: 'Usuarios', exact: true }).click();
+            await page.waitForFunction(() => document.querySelectorAll('#usersList .user-row').length > 0, null, { timeout: 15000 });
+
+            const tokenBeforeLogout = await page.evaluate(() => sessionStorage.getItem('hxSessionToken'));
+            if (!tokenBeforeLogout) throw new Error(`${label}: session token missing after login`);
+
+            // Mobile must not create a materially wider document than its viewport.
+            if (viewport.width <= 600) {
+              const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+              if (overflow > 8) throw new Error(`${label}: horizontal overflow ${overflow}px`);
+            }
+
+            // Ignore expected browser/network noise but fail on uncaught application errors.
+            const serious = consoleErrors.filter(x =>
+              !/favicon|Failed to load resource|net::ERR_/i.test(x) &&
+              !/No se pudieron cargar usuarios desde Airtable/i.test(x)
+            );
+            if (serious.length) throw new Error(`${label}: console errors: ${serious.slice(0, 3).join(' | ')}`);
+
+            // Close the panel and validate logout/session cleanup.
+            await page.locator('#adminOverlay button[onclick*="closeOverlay"]').first().click();
+            await page.locator('button[onclick="doLogout()"]').click();
+            await page.locator('#loginUser').waitFor({ state: 'visible', timeout: 10000 });
+            const tokenAfterLogout = await page.evaluate(() => sessionStorage.getItem('hxSessionToken'));
+            if (tokenAfterLogout) throw new Error(`${label}: session token remained after logout`);
+
+            append(`${label.toUpperCase()}_LOGIN_DASHBOARD_ADMIN_LOGOUT=PASS`);
+            await context.close();
+          }
+
+          try {
+            await runViewport('desktop', { width: 1440, height: 1000 });
+            await runViewport('mobile', { width: 390, height: 844 });
+            append('OVERALL=PASS');
+          } catch (error) {
+            append(`BROWSER_ERROR=${String(error.message || error).replace(/\n/g, ' ')}`);
+            append('OVERALL=FAIL');
+            throw error;
+          } finally {
+            await browser.close();
+          }
+          JS
+
+          node /tmp/ui-smoke.mjs
+          cat "$RESULT_FILE"
+
+      - name: Remove disposable production user
+        if: always()
+        env:
+          USER_ID: ${{ steps.bootstrap.outputs.user_id }}
+        shell: bash
+        run: |
+          set +e
+          if [ -n "${USER_ID:-}" ] && [ -n "${AIRTABLE_TOKEN:-}" ]; then
+            curl -sS -X DELETE \
+              -H "Authorization: Bearer $AIRTABLE_TOKEN" \
+              "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$USER_ID" >/dev/null 2>&1 || true
+          fi
+
+      - name: Persist browser smoke result
+        if: always()
+        shell: bash
+        run: |
+          if [ ! -f ui-smoke-result.txt ]; then
+            printf 'CHECKED_AT_UTC=%s\nOVERALL=FAIL\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > ui-smoke-result.txt
+          fi
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add ui-smoke-result.txt
+          git commit -m "Update Catalogo HX browser smoke result" || exit 0
+          git push
+
+      - name: Fail if browser verification failed
+        if: steps.browser.outcome != 'success'
+        run: exit 1
