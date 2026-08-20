@@ -1,0 +1,271 @@
+name: Catalogo HX Production E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/production-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      API_BASE: https://catalogo-hx-backend.armando-avila.workers.dev
+      AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+      AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+      USERS_TABLE_ID: tbleeFejdXclP3md1
+      PROVIDERS_TABLE_ID: tblkWbENo3IUGAoB6
+      BANKS_TABLE_ID: tblheU9qbfFJUYmDh
+      RESULT_FILE: production-e2e-result.txt
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run production functional verification
+        id: verify
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          : > "$RESULT_FILE"
+          echo "CHECKED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT_FILE"
+
+          ADMIN_ID=""
+          VIEWER_ID=""
+          PROVIDER_ID=""
+          BANK_ID=""
+          ADMIN_TOKEN=""
+
+          cleanup() {
+            set +e
+            if [ -n "${BANK_ID:-}" ]; then
+              curl -sS -X DELETE \
+                -H "Authorization: Bearer $AIRTABLE_TOKEN" \
+                "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$BANKS_TABLE_ID/$BANK_ID" >/dev/null 2>&1 || true
+            fi
+            if [ -n "${PROVIDER_ID:-}" ]; then
+              curl -sS -X DELETE \
+                -H "Authorization: Bearer $AIRTABLE_TOKEN" \
+                "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$PROVIDERS_TABLE_ID/$PROVIDER_ID" >/dev/null 2>&1 || true
+            fi
+            if [ -n "${VIEWER_ID:-}" ]; then
+              curl -sS -X DELETE \
+                -H "Authorization: Bearer $AIRTABLE_TOKEN" \
+                "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$VIEWER_ID" >/dev/null 2>&1 || true
+            fi
+            if [ -n "${ADMIN_ID:-}" ]; then
+              curl -sS -X DELETE \
+                -H "Authorization: Bearer $AIRTABLE_TOKEN" \
+                "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$ADMIN_ID" >/dev/null 2>&1 || true
+            fi
+          }
+
+          on_error() {
+            local line="$1"
+            echo "FAILED_AT_LINE=$line" >> "$RESULT_FILE"
+            echo "OVERALL=FAIL" >> "$RESULT_FILE"
+          }
+
+          trap 'on_error $LINENO' ERR
+          trap cleanup EXIT
+
+          if [ -z "${AIRTABLE_TOKEN:-}" ] || [ -z "${AIRTABLE_BASE_ID:-}" ]; then
+            echo "SECRETS=FAIL" >> "$RESULT_FILE"
+            false
+          fi
+          echo "SECRETS=PASS" >> "$RESULT_FILE"
+
+          SUFFIX="$(date +%s)-$RANDOM"
+          ADMIN_USER="e2e-admin-$SUFFIX"
+          ADMIN_PASS="$(openssl rand -hex 18)"
+          VIEWER_USER="e2e-viewer-$SUFFIX"
+          VIEWER_PASS="$(openssl rand -hex 18)"
+          TEST_RFC="E2E-${SUFFIX}"
+          TEST_COMPANY="E2E Provider $SUFFIX"
+
+          # Bootstrap a disposable admin directly in Airtable. The production login must
+          # migrate its temporary legacy password to Password Hash and clear plaintext.
+          jq -n \
+            --arg name "E2E Temporary Admin" \
+            --arg user "$ADMIN_USER" \
+            --arg pass "$ADMIN_PASS" \
+            '{records:[{fields:{"Nombre completo":$name,"Usuario":$user,"Usuario (login)":$user,"Contraseña":$pass,"Rol":"admin"}}]}' \
+            > /tmp/admin-create.json
+
+          ADMIN_CREATE_CODE=$(curl -sS -o /tmp/admin-created.json -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer $AIRTABLE_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data-binary @/tmp/admin-create.json \
+            "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID")
+          test "$ADMIN_CREATE_CODE" = "200"
+          ADMIN_ID=$(jq -r '.records[0].id // empty' /tmp/admin-created.json)
+          test -n "$ADMIN_ID"
+          echo "TEMP_ADMIN_BOOTSTRAP=PASS" >> "$RESULT_FILE"
+
+          jq -n --arg usuario "$ADMIN_USER" --arg password "$ADMIN_PASS" \
+            '{usuario:$usuario,password:$password}' > /tmp/admin-login-request.json
+          ADMIN_LOGIN_CODE=$(curl -sS -o /tmp/admin-login.json -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' \
+            --data-binary @/tmp/admin-login-request.json \
+            "$API_BASE/login")
+          test "$ADMIN_LOGIN_CODE" = "200"
+          ADMIN_TOKEN=$(jq -r '.token // empty' /tmp/admin-login.json)
+          test -n "$ADMIN_TOKEN"
+          test "$(jq -r '.usuario.rol // empty' /tmp/admin-login.json)" = "admin"
+          echo "ADMIN_LOGIN=PASS" >> "$RESULT_FILE"
+
+          # Confirm migration happened in the real Airtable record.
+          curl -sS \
+            -H "Authorization: Bearer $AIRTABLE_TOKEN" \
+            "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$ADMIN_ID" \
+            > /tmp/admin-after-login.json
+          test -n "$(jq -r '.fields["Password Hash"] // empty' /tmp/admin-after-login.json)"
+          test -z "$(jq -r '.fields["Contraseña"] // empty' /tmp/admin-after-login.json)"
+          echo "PASSWORD_MIGRATION=PASS" >> "$RESULT_FILE"
+
+          # Admin reads: all protected production modules must be available with the token.
+          for endpoint in usuarios proveedores bancos; do
+            CODE=$(curl -sS -o "/tmp/admin-$endpoint.json" -w '%{http_code}' \
+              -H "Authorization: Bearer $ADMIN_TOKEN" "$API_BASE/$endpoint")
+            test "$CODE" = "200"
+            test "$(jq -r '.ok' "/tmp/admin-$endpoint.json")" = "true"
+          done
+          ! grep -q 'Password Hash' /tmp/admin-usuarios.json
+          ! grep -q 'Contraseña' /tmp/admin-usuarios.json
+          echo "ADMIN_READS_AND_USER_SANITIZATION=PASS" >> "$RESULT_FILE"
+
+          # Admin CRUD: create and update a disposable provider.
+          jq -n --arg empresa "$TEST_COMPANY" --arg rfc "$TEST_RFC" \
+            '{fields:{Empresa:$empresa,RFC:$rfc,Categoria:"E2E TEST"}}' > /tmp/provider-create.json
+          PROVIDER_CREATE_CODE=$(curl -sS -o /tmp/provider-created.json -w '%{http_code}' \
+            -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/provider-create.json "$API_BASE/proveedores")
+          test "$PROVIDER_CREATE_CODE" = "201"
+          PROVIDER_ID=$(jq -r '.record.id // .data.id // empty' /tmp/provider-created.json)
+          test -n "$PROVIDER_ID"
+
+          jq -n --arg id "$PROVIDER_ID" '{recordId:$id,fields:{Ciudad:"E2E-CHECK"}}' > /tmp/provider-update.json
+          PROVIDER_UPDATE_CODE=$(curl -sS -o /tmp/provider-updated.json -w '%{http_code}' \
+            -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/provider-update.json "$API_BASE/proveedores")
+          test "$PROVIDER_UPDATE_CODE" = "200"
+          test "$(jq -r '.record.fields.Ciudad // .data.fields.Ciudad // empty' /tmp/provider-updated.json)" = "E2E-CHECK"
+          echo "ADMIN_PROVIDER_CRUD=PASS" >> "$RESULT_FILE"
+
+          # Create a linked bank record through production API.
+          jq -n --arg empresa "$TEST_COMPANY" --arg rfc "$TEST_RFC" --arg provider "$PROVIDER_ID" \
+            '{fields:{Empresa:$empresa,RFC:$rfc,"Nombre de Banco":"BANCO E2E",Cuenta:"0000000001",CLABE:"000000000000000001","Titular de la cuenta":$empresa,Proveedor:[$provider]}}' \
+            > /tmp/bank-create.json
+          BANK_CREATE_CODE=$(curl -sS -o /tmp/bank-created.json -w '%{http_code}' \
+            -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/bank-create.json "$API_BASE/bancos")
+          test "$BANK_CREATE_CODE" = "201"
+          BANK_ID=$(jq -r '.record.id // .data.id // empty' /tmp/bank-created.json)
+          test -n "$BANK_ID"
+          echo "ADMIN_BANK_CREATE=PASS" >> "$RESULT_FILE"
+
+          # Create viewer using the production admin API; the Worker must hash its password immediately.
+          jq -n \
+            --arg user "$VIEWER_USER" \
+            --arg pass "$VIEWER_PASS" \
+            --arg rfc "$TEST_RFC" \
+            '{fields:{"Nombre completo":"E2E Temporary Viewer","Usuario":$user,"Usuario (login)":$user,"Contraseña":$pass,"Rol":"viewer","Empresas permitidas":$rfc}}' \
+            > /tmp/viewer-create.json
+          VIEWER_CREATE_CODE=$(curl -sS -o /tmp/viewer-created.json -w '%{http_code}' \
+            -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/viewer-create.json "$API_BASE/usuarios")
+          test "$VIEWER_CREATE_CODE" = "201"
+          VIEWER_ID=$(jq -r '.record.id // .data.id // empty' /tmp/viewer-created.json)
+          test -n "$VIEWER_ID"
+          ! grep -q 'Password Hash' /tmp/viewer-created.json
+          ! grep -q 'Contraseña' /tmp/viewer-created.json
+
+          jq -n --arg usuario "$VIEWER_USER" --arg password "$VIEWER_PASS" \
+            '{usuario:$usuario,password:$password}' > /tmp/viewer-login-request.json
+          VIEWER_LOGIN_CODE=$(curl -sS -o /tmp/viewer-login.json -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' \
+            --data-binary @/tmp/viewer-login-request.json "$API_BASE/login")
+          test "$VIEWER_LOGIN_CODE" = "200"
+          VIEWER_TOKEN=$(jq -r '.token // empty' /tmp/viewer-login.json)
+          test -n "$VIEWER_TOKEN"
+          echo "VIEWER_LOGIN=PASS" >> "$RESULT_FILE"
+
+          # Server-side RFC filtering: the viewer must see only the temporary allowed provider.
+          VIEWER_PROVIDERS_CODE=$(curl -sS -o /tmp/viewer-providers.json -w '%{http_code}' \
+            -H "Authorization: Bearer $VIEWER_TOKEN" "$API_BASE/proveedores")
+          test "$VIEWER_PROVIDERS_CODE" = "200"
+          test "$(jq --arg rfc "$TEST_RFC" '[.records[] | select(.fields.RFC == $rfc)] | length' /tmp/viewer-providers.json)" -ge 1
+          test "$(jq --arg rfc "$TEST_RFC" '[.records[] | select((.fields.RFC // "") != $rfc)] | length' /tmp/viewer-providers.json)" = "0"
+
+          VIEWER_BANKS_CODE=$(curl -sS -o /tmp/viewer-banks.json -w '%{http_code}' \
+            -H "Authorization: Bearer $VIEWER_TOKEN" "$API_BASE/bancos")
+          test "$VIEWER_BANKS_CODE" = "200"
+          test "$(jq --arg id "$BANK_ID" '[.records[] | select(.id == $id)] | length' /tmp/viewer-banks.json)" -ge 1
+          test "$(jq --arg pid "$PROVIDER_ID" '[.records[] | select(((.fields.Proveedor // []) | index($pid)) == null)] | length' /tmp/viewer-banks.json)" = "0"
+          echo "VIEWER_SERVER_SIDE_FILTERING=PASS" >> "$RESULT_FILE"
+
+          # Viewer permissions must be enforced by the backend, not just hidden in the UI.
+          VIEWER_USERS_CODE=$(curl -sS -o /tmp/viewer-users.json -w '%{http_code}' \
+            -H "Authorization: Bearer $VIEWER_TOKEN" "$API_BASE/usuarios")
+          test "$VIEWER_USERS_CODE" = "403"
+
+          VIEWER_WRITE_CODE=$(curl -sS -o /tmp/viewer-write.json -w '%{http_code}' \
+            -X POST -H "Authorization: Bearer $VIEWER_TOKEN" -H 'Content-Type: application/json' \
+            --data '{"fields":{"Empresa":"SHOULD NOT EXIST"}}' "$API_BASE/proveedores")
+          test "$VIEWER_WRITE_CODE" = "403"
+
+          INVALID_TOKEN_CODE=$(curl -sS -o /tmp/invalid-token.json -w '%{http_code}' \
+            -H 'Authorization: Bearer invalid.invalid' "$API_BASE/proveedores")
+          test "$INVALID_TOKEN_CODE" = "401"
+          echo "BACKEND_AUTHORIZATION=PASS" >> "$RESULT_FILE"
+
+          # Explicit cleanup via production APIs where possible. The EXIT trap remains as a safety net.
+          jq -n --arg id "$BANK_ID" '{recordId:$id}' > /tmp/delete-bank.json
+          test "$(curl -sS -o /tmp/delete-bank-response.json -w '%{http_code}' -X DELETE \
+            -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/delete-bank.json "$API_BASE/bancos")" = "200"
+          BANK_ID=""
+
+          jq -n --arg id "$PROVIDER_ID" '{recordId:$id}' > /tmp/delete-provider.json
+          test "$(curl -sS -o /tmp/delete-provider-response.json -w '%{http_code}' -X DELETE \
+            -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/delete-provider.json "$API_BASE/proveedores")" = "200"
+          PROVIDER_ID=""
+
+          jq -n --arg id "$VIEWER_ID" '{recordId:$id}' > /tmp/delete-viewer.json
+          test "$(curl -sS -o /tmp/delete-viewer-response.json -w '%{http_code}' -X DELETE \
+            -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/delete-viewer.json "$API_BASE/usuarios")" = "200"
+          VIEWER_ID=""
+
+          # Temporary bootstrap admin is removed directly from Airtable so no permanent test user remains.
+          test "$(curl -sS -o /tmp/delete-admin-response.json -w '%{http_code}' -X DELETE \
+            -H "Authorization: Bearer $AIRTABLE_TOKEN" \
+            "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$ADMIN_ID")" = "200"
+          ADMIN_ID=""
+          echo "TEST_DATA_CLEANUP=PASS" >> "$RESULT_FILE"
+
+          echo "OVERALL=PASS" >> "$RESULT_FILE"
+          cat "$RESULT_FILE"
+
+      - name: Persist E2E result
+        if: always()
+        shell: bash
+        run: |
+          if [ ! -f production-e2e-result.txt ]; then
+            printf 'CHECKED_AT_UTC=%s\nOVERALL=FAIL\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > production-e2e-result.txt
+          fi
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add production-e2e-result.txt
+          git commit -m "Update Catalogo HX production E2E result" || exit 0
+          git push
+
+      - name: Fail workflow if E2E failed
+        if: steps.verify.outcome != 'success'
+        run: exit 1
