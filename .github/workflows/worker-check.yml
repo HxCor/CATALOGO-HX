@@ -33,5 +33,8 @@ jobs:
           grep -q 'PASSWORD_PREFIX = "hmac-sha256-v1"' worker/index-fast.js
           grep -q 'Password Hash' worker/index-fast.js
           grep -q 'SESSION_TTL_SECONDS' worker/index-fast.js
-          grep -q 'secretMaterial' worker/index-fast.js
+          grep -q 'function passwordSecret' worker/index-fast.js
+          grep -q 'function sessionSecret' worker/index-fast.js
+          grep -q 'uniqueSecrets' worker/index-fast.js
+          grep -q 'secretIsolation' worker/index-fast.js
           grep -q 'main = "worker/index-fast.js"' wrangler.toml
