@@ -1,0 +1,120 @@
+name: Divisas PDF and delivery smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/divisas-delivery-smoke.yml'
+      - 'divisas-document-actions.js'
+      - 'worker/index-docs.js'
+      - 'wrangler.toml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  delivery-smoke:
+    runs-on: ubuntu-latest
+    env:
+      API_BASE: https://catalogo-hx-backend.armando-avila.workers.dev
+      AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+      AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+      USERS_TABLE_ID: tbleeFejdXclP3md1
+      QUOTES_TABLE_ID: tblqEJCKK7Ers6GWi
+      RESULT_FILE: divisas-delivery-result.txt
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate JavaScript syntax
+        run: |
+          node --check divisas-document-actions.js
+          node --check worker/index-docs.js
+
+      - name: Verify quote PDF support data and delivery endpoint
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : > "$RESULT_FILE"
+          echo "CHECKED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT_FILE"
+
+          USER_ID=""
+          QUOTE_ID=""
+          cleanup() {
+            set +e
+            if [ -n "${QUOTE_ID:-}" ]; then
+              curl -sS -X DELETE -H "Authorization: Bearer $AIRTABLE_TOKEN" \
+                "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$QUOTES_TABLE_ID/$QUOTE_ID" >/dev/null 2>&1 || true
+            fi
+            if [ -n "${USER_ID:-}" ]; then
+              curl -sS -X DELETE -H "Authorization: Bearer $AIRTABLE_TOKEN" \
+                "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$USER_ID" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+
+          : "${AIRTABLE_TOKEN:?AIRTABLE_TOKEN missing}"
+          : "${AIRTABLE_BASE_ID:?AIRTABLE_BASE_ID missing}"
+
+          SUFFIX="$(date +%s)-$RANDOM"
+          USER="delivery-test-$SUFFIX"
+          PASS="$(openssl rand -hex 18)"
+          EMAIL="delivery-smoke@example.com"
+
+          jq -n --arg u "$USER" --arg p "$PASS" '{records:[{fields:{"Nombre completo":"Delivery Smoke","Usuario":$u,"Usuario (login)":$u,"Contraseña":$p,"Rol":"admin"}}]}' > /tmp/user-create.json
+          curl -fsS -X POST -H "Authorization: Bearer $AIRTABLE_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/user-create.json "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID" > /tmp/user-created.json
+          USER_ID=$(jq -r '.records[0].id' /tmp/user-created.json)
+
+          jq -n --arg usuario "$USER" --arg password "$PASS" '{usuario:$usuario,password:$password}' > /tmp/login.json
+          curl -fsS -X POST -H 'Content-Type: application/json' --data-binary @/tmp/login.json "$API_BASE/login" > /tmp/session.json
+          TOKEN=$(jq -r '.token // empty' /tmp/session.json)
+          test -n "$TOKEN"
+          echo "LOGIN=PASS" >> "$RESULT_FILE"
+
+          jq -n '{provider:"HX",rfc:"",clientProject:"Smoke PDF",origin:"USD",destination:"MXN",amount:1000,rateType:"sell",adjustmentPct:0}' > /tmp/quote.json
+          curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'Origin: https://hxcor.github.io' -H 'Content-Type: application/json' \
+            --data-binary @/tmp/quote.json "$API_BASE/divisas/quotes" > /tmp/quote-created.json
+          test "$(jq -r '.ok' /tmp/quote-created.json)" = "true"
+          QUOTE_ID=$(jq -r '.record.id // empty' /tmp/quote-created.json)
+          test -n "$QUOTE_ID"
+          jq -e '.record.fields.Folio | strings' /tmp/quote-created.json >/dev/null
+          jq -e '.record.fields.TipoCambioUsado | numbers' /tmp/quote-created.json >/dev/null
+          jq -e '.record.fields.ResultadoConvertido | numbers' /tmp/quote-created.json >/dev/null
+          echo "QUOTE_DATA_FOR_PDF=PASS" >> "$RESULT_FILE"
+
+          jq -n --arg id "$QUOTE_ID" --arg email "$EMAIL" '{recordId:$id,email:$email}' > /tmp/delivery.json
+          STATUS_CODE=""
+          for i in $(seq 1 20); do
+            STATUS_CODE=$(curl -sS -o /tmp/delivery-response.json -w '%{http_code}' -X POST \
+              -H "Authorization: Bearer $TOKEN" -H 'Origin: https://hxcor.github.io' -H 'Content-Type: application/json' \
+              --data-binary @/tmp/delivery.json "$API_BASE/divisas/quotes/status" || true)
+            [ "$STATUS_CODE" = "200" ] && break
+            sleep 3
+          done
+          test "$STATUS_CODE" = "200"
+          test "$(jq -r '.ok' /tmp/delivery-response.json)" = "true"
+          test "$(jq -r '.record.fields.EmailDestinatario' /tmp/delivery-response.json)" = "$EMAIL"
+          echo "DELIVERY_ENDPOINT=PASS" >> "$RESULT_FILE"
+
+          curl -fsS -H "Authorization: Bearer $AIRTABLE_TOKEN" \
+            "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$QUOTES_TABLE_ID/$QUOTE_ID" > /tmp/quote-airtable.json
+          test "$(jq -r '.fields.EmailDestinatario // empty' /tmp/quote-airtable.json)" = "$EMAIL"
+          echo "RECIPIENT_PERSISTENCE=PASS" >> "$RESULT_FILE"
+
+          echo "PDF_SCRIPT_SYNTAX=PASS" >> "$RESULT_FILE"
+          echo "OVERALL=PASS" >> "$RESULT_FILE"
+          cat "$RESULT_FILE"
+
+      - name: Persist result
+        if: always()
+        shell: bash
+        run: |
+          if [ ! -f "$RESULT_FILE" ]; then
+            printf 'OVERALL=FAIL\n' > "$RESULT_FILE"
+          fi
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add "$RESULT_FILE"
+          git commit -m "Update Divisas delivery smoke result" || exit 0
+          git push
