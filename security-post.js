@@ -150,6 +150,99 @@
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
   }
 
+  function currentProviderEmailInputValue() {
+    return String(document.getElementById('fHxEmail')?.value || '').trim();
+  }
+
+  function ensureProviderEmailField() {
+    if (document.getElementById('fHxEmail')) return document.getElementById('fHxEmail');
+    const anchor = document.getElementById('fOpinionCumplimientoUrl')?.closest('.form-row');
+    if (!anchor) return null;
+
+    const row = document.createElement('div');
+    row.className = 'form-row hx-provider-email-row';
+    row.innerHTML = `
+      <div class="form-group full">
+        <label class="form-label">Correo de contacto / corporativo</label>
+        <input class="form-input" id="fHxEmail" type="email" autocomplete="email" placeholder="contacto@empresa.com">
+        <div style="font-size:11px;color:var(--ink3);margin-top:5px">Se usa para preparar correos desde la ficha de la empresa.</div>
+      </div>`;
+    anchor.insertAdjacentElement('afterend', row);
+    return row.querySelector('#fHxEmail');
+  }
+
+  const originalOpenAddForm = window.openAddForm;
+  if (typeof originalOpenAddForm === 'function') {
+    window.openAddForm = function(...args) {
+      const result = originalOpenAddForm(...args);
+      const input = ensureProviderEmailField();
+      if (input) input.value = '';
+      return result;
+    };
+  }
+
+  const originalOpenEditForm = window.openEditForm;
+  if (typeof originalOpenEditForm === 'function') {
+    window.openEditForm = function(idx, ...args) {
+      const result = originalOpenEditForm(idx, ...args);
+      const input = ensureProviderEmailField();
+      const provider = typeof getProveedores === 'function' ? getProveedores()[idx] : null;
+      if (input) input.value = String(provider?.email || '');
+      return result;
+    };
+  }
+
+  let mailFormWriteActive = false;
+
+  const originalCreateProveedorAirtable = window.createProveedorAirtable;
+  if (typeof originalCreateProveedorAirtable === 'function') {
+    window.createProveedorAirtable = function(entry, ...args) {
+      const email = mailFormWriteActive ? currentProviderEmailInputValue() : String(entry?.email || '');
+      return originalCreateProveedorAirtable({ ...(entry || {}), email }, ...args);
+    };
+  }
+
+  const originalUpdateProveedorAirtable = window.updateProveedorAirtable;
+  if (typeof originalUpdateProveedorAirtable === 'function') {
+    window.updateProveedorAirtable = function(entry, ...args) {
+      const email = mailFormWriteActive ? currentProviderEmailInputValue() : String(entry?.email || '');
+      return originalUpdateProveedorAirtable({ ...(entry || {}), email }, ...args);
+    };
+  }
+
+  const originalSaveProveedores = window.saveProveedores;
+  if (typeof originalSaveProveedores === 'function') {
+    window.saveProveedores = function(arr) {
+      if (mailFormWriteActive && Array.isArray(arr)) {
+        const email = currentProviderEmailInputValue();
+        const editIdx = Number.parseInt(document.getElementById('fEditIdx')?.value || '-1', 10);
+        const rfc = String(document.getElementById('fRfc')?.value || '').trim().toUpperCase();
+        let target = Number.isInteger(editIdx) && editIdx >= 0 ? arr[editIdx] : null;
+        if (!target && rfc) target = arr.find(p => String(p?.rfc || '').trim().toUpperCase() === rfc);
+        if (target) target.email = email;
+      }
+      return originalSaveProveedores(arr);
+    };
+  }
+
+  const originalSaveForm = window.saveForm;
+  if (typeof originalSaveForm === 'function') {
+    window.saveForm = async function(...args) {
+      ensureProviderEmailField();
+      const rawEmail = currentProviderEmailInputValue();
+      if (rawEmail && !normalizeProviderEmail(rawEmail)) {
+        if (typeof showToast === 'function') showToast('El correo de la empresa no tiene un formato válido.', 'error');
+        return;
+      }
+      mailFormWriteActive = true;
+      try {
+        return await originalSaveForm(...args);
+      } finally {
+        mailFormWriteActive = false;
+      }
+    };
+  }
+
   window.hxComposeProviderEmail = function(provider) {
     const email = normalizeProviderEmail(provider?.email);
     if (!email) {
