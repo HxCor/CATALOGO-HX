@@ -25,10 +25,12 @@ jobs:
         with:
           node-version: '22'
       - name: JavaScript syntax
-        run: node --check worker/index-fast.js
+        run: |
+          node --check worker/index-fast.js
+          node --check worker/index-divisas.js
       - name: Wrangler dry-run build
         run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/catalogo-worker-build
-      - name: Verify active password and session hardening markers
+      - name: Verify active password, session and FX hardening markers
         run: |
           grep -q 'PASSWORD_PREFIX = "hmac-sha256-v1"' worker/index-fast.js
           grep -q 'Password Hash' worker/index-fast.js
@@ -37,4 +39,7 @@ jobs:
           grep -q 'function sessionSecret' worker/index-fast.js
           grep -q 'uniqueSecrets' worker/index-fast.js
           grep -q 'secretIsolation' worker/index-fast.js
-          grep -q 'main = "worker/index-fast.js"' wrangler.toml
+          grep -q "SOURCE_URL = 'https://www.eldolar.info/es-MX/mexico/dia/hoy'" worker/index-divisas.js
+          grep -q "path === '/divisas/current'" worker/index-divisas.js
+          grep -q "path === '/divisas/quotes'" worker/index-divisas.js
+          grep -q 'main = "worker/index-divisas.js"' wrangler.toml
