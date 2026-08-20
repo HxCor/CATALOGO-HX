@@ -34,7 +34,9 @@ jobs:
             [app.includes('<script>\nconst LOGOS'), 'app.html main script marker'],
             [boot.includes('security-pre.js'), 'bootstrap injects security-pre.js'],
             [boot.includes('security-post.js'), 'bootstrap injects security-post.js'],
-            [pre.includes("key === USERS_KEY"), 'password persistence interception'],
+            [pre.includes("key === USERS_KEY"), 'credential persistence interception'],
+            [pre.includes("'password hash'"), 'password hash removed from browser storage'],
+            [pre.includes('isUsersRead && !info.authorized'), 'pre-login /usuarios request suppressed locally'],
             [post.includes("sessionStorage.removeItem('hxSessionToken')"), 'logout clears session token'],
             [post.includes("toLowerCase() === 'admin'"), 'admin protection by username'],
             [post.includes('aplicarPermisosUsuario(getProveedores())'), 'sidebar permission filtering']
