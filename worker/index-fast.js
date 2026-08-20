@@ -63,8 +63,16 @@ async function hmacSha256(secret, message) {
   return new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(message)));
 }
 
-function secretMaterial(env) {
-  return env.PASSWORD_PEPPER || env.SESSION_SECRET || env.AIRTABLE_TOKEN;
+function passwordSecret(env) {
+  return env.PASSWORD_PEPPER || env.AIRTABLE_TOKEN;
+}
+
+function sessionSecret(env) {
+  return env.SESSION_SECRET || env.AIRTABLE_TOKEN;
+}
+
+function uniqueSecrets(values) {
+  return [...new Set(values.filter(Boolean).map(String))];
 }
 
 async function issueToken(env, user) {
@@ -78,7 +86,7 @@ async function issueToken(env, user) {
     exp: now + SESSION_TTL_SECONDS,
   };
   const encoded = base64Url(encoder.encode(JSON.stringify(payload)));
-  const sig = await hmacSha256(secretMaterial(env), encoded);
+  const sig = await hmacSha256(sessionSecret(env), encoded);
   return `${encoded}.${base64Url(sig)}`;
 }
 
@@ -86,9 +94,18 @@ async function verifyToken(env, token) {
   if (!token || !token.includes(".")) return null;
   const [encoded, signature] = token.split(".", 2);
   try {
-    const expected = await hmacSha256(secretMaterial(env), encoded);
     const actual = fromBase64Url(signature);
-    if (!timingSafeEqual(expected, actual)) return null;
+    const candidates = uniqueSecrets([sessionSecret(env), env.AIRTABLE_TOKEN]);
+    let signatureValid = false;
+    for (const secret of candidates) {
+      const expected = await hmacSha256(secret, encoded);
+      if (timingSafeEqual(expected, actual)) {
+        signatureValid = true;
+        break;
+      }
+    }
+    if (!signatureValid) return null;
+
     const payload = JSON.parse(decoder.decode(fromBase64Url(encoded)));
     const now = Math.floor(Date.now() / 1000);
     if (!payload.exp || payload.exp <= now || !payload.user || !payload.rol) return null;
@@ -171,19 +188,28 @@ function publicUser(record) {
 async function hashPassword(env, password) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const saltText = base64Url(salt);
-  const digest = await hmacSha256(secretMaterial(env), `${saltText}.${password}`);
+  const digest = await hmacSha256(passwordSecret(env), `${saltText}.${password}`);
   return `${PASSWORD_PREFIX}$${saltText}$${base64Url(digest)}`;
 }
 
 async function verifyPassword(env, password, stored) {
   try {
     const [prefix, saltText, digestText] = String(stored || "").split("$");
-    if (prefix !== PASSWORD_PREFIX || !saltText || !digestText) return false;
+    if (prefix !== PASSWORD_PREFIX || !saltText || !digestText) return { valid: false, needsRehash: false };
+
     const expected = fromBase64Url(digestText);
-    const actual = await hmacSha256(secretMaterial(env), `${saltText}.${password}`);
-    return timingSafeEqual(actual, expected);
+    const primary = passwordSecret(env);
+    const candidates = uniqueSecrets([primary, env.AIRTABLE_TOKEN]);
+
+    for (const secret of candidates) {
+      const actual = await hmacSha256(secret, `${saltText}.${password}`);
+      if (timingSafeEqual(actual, expected)) {
+        return { valid: true, needsRehash: secret !== primary };
+      }
+    }
+    return { valid: false, needsRehash: false };
   } catch {
-    return false;
+    return { valid: false, needsRehash: false };
   }
 }
 
@@ -212,13 +238,19 @@ async function handleLogin(request, env) {
   const legacyPassword = String(f["Contraseña"] || "");
 
   let valid = false;
-  if (storedHash) valid = await verifyPassword(env, password, storedHash);
-  else if (legacyPassword) valid = safePlaintextCompare(password, legacyPassword);
+  let needsRehash = false;
+  if (storedHash) {
+    const verification = await verifyPassword(env, password, storedHash);
+    valid = verification.valid;
+    needsRehash = verification.needsRehash;
+  } else if (legacyPassword) {
+    valid = safePlaintextCompare(password, legacyPassword);
+  }
 
   if (!valid) return fail(request, 401, "Credenciales inválidas");
 
-  let migration = storedHash ? "already-hashed" : "pending";
-  if (!storedHash && legacyPassword) {
+  let migration = storedHash ? (needsRehash ? "secret-rotation-pending" : "already-hashed") : "pending";
+  if ((!storedHash && legacyPassword) || needsRehash) {
     try {
       const migratedHash = await hashPassword(env, password);
       await airtableRequest(env, table, {
@@ -226,7 +258,7 @@ async function handleLogin(request, env) {
         recordId: record.id,
         body: { fields: { "Password Hash": migratedHash, "Contraseña": "" } },
       });
-      migration = "completed";
+      migration = needsRehash ? "secret-rotation-completed" : "completed";
     } catch (error) {
       console.error("Password migration failed:", error?.message || error);
       migration = "deferred";
@@ -369,7 +401,14 @@ export default {
       if (!env.AIRTABLE_TOKEN || !env.AIRTABLE_BASE_ID) return fail(request, 500, "Backend no configurado");
 
       const path = new URL(request.url).pathname.replace(/\/+$/, "") || "/";
-      if (path === "/") return json(request, { ok: true, service: "CATALOGO-HX backend", security: PASSWORD_PREFIX });
+      if (path === "/") {
+        return json(request, {
+          ok: true,
+          service: "CATALOGO-HX backend",
+          security: PASSWORD_PREFIX,
+          secretIsolation: env.PASSWORD_PEPPER && env.SESSION_SECRET ? "isolated" : "fallback",
+        });
+      }
       if (path === "/login" && request.method === "POST") return await handleLogin(request, env);
       if (path === "/usuarios") return await handleUsers(request, env);
       if (path === "/proveedores") return await handleGenericCrud(request, env, "proveedores");
