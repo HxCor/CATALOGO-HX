@@ -1,0 +1,98 @@
+name: Divisas manual refresh smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/divisas-refresh-smoke.yml'
+      - 'divisas-refresh-fix.js'
+      - 'divisas-hx-pro.js'
+      - 'worker/index-divisas.js'
+      - 'wrangler.toml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-smoke:
+    runs-on: ubuntu-latest
+    env:
+      API_BASE: https://catalogo-hx-backend.armando-avila.workers.dev
+      AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+      AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+      USERS_TABLE_ID: tbleeFejdXclP3md1
+      RESULT_FILE: divisas-refresh-result.txt
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify forced manual refresh
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : > "$RESULT_FILE"
+          echo "CHECKED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT_FILE"
+
+          TEST_ID=""
+          cleanup() {
+            set +e
+            if [ -n "${TEST_ID:-}" ]; then
+              curl -sS -X DELETE -H "Authorization: Bearer $AIRTABLE_TOKEN" \
+                "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$TEST_ID" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+
+          : "${AIRTABLE_TOKEN:?AIRTABLE_TOKEN missing}"
+          : "${AIRTABLE_BASE_ID:?AIRTABLE_BASE_ID missing}"
+
+          SUFFIX="$(date +%s)-$RANDOM"
+          USER="refresh-test-$SUFFIX"
+          PASS="$(openssl rand -hex 18)"
+
+          jq -n --arg u "$USER" --arg p "$PASS" '{records:[{fields:{"Nombre completo":"Refresh Smoke","Usuario":$u,"Usuario (login)":$u,"Contraseña":$p,"Rol":"admin"}}]}' > /tmp/create.json
+          curl -fsS -X POST -H "Authorization: Bearer $AIRTABLE_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/create.json "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID" > /tmp/created.json
+          TEST_ID=$(jq -r '.records[0].id' /tmp/created.json)
+
+          jq -n --arg usuario "$USER" --arg password "$PASS" '{usuario:$usuario,password:$password}' > /tmp/login.json
+          curl -fsS -X POST -H 'Content-Type: application/json' --data-binary @/tmp/login.json "$API_BASE/login" > /tmp/session.json
+          TOKEN=$(jq -r '.token // empty' /tmp/session.json)
+          test -n "$TOKEN"
+          echo "LOGIN=PASS" >> "$RESULT_FILE"
+
+          curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Origin: https://hxcor.github.io' \
+            "$API_BASE/divisas/current?refresh=1&_smoke=1" > /tmp/r1.json
+          sleep 2
+          curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Origin: https://hxcor.github.io' \
+            "$API_BASE/divisas/current?refresh=1&_smoke=2" > /tmp/r2.json
+
+          test "$(jq -r '.ok' /tmp/r1.json)" = "true"
+          test "$(jq -r '.ok' /tmp/r2.json)" = "true"
+          jq -e '.data.average | numbers' /tmp/r2.json >/dev/null
+          jq -e '.data.buy | numbers' /tmp/r2.json >/dev/null
+          jq -e '.data.sell | numbers' /tmp/r2.json >/dev/null
+          test "$(jq -r '.data.cached' /tmp/r2.json)" = "false"
+          T1=$(jq -r '.data.fetchedAt // empty' /tmp/r1.json)
+          T2=$(jq -r '.data.fetchedAt // empty' /tmp/r2.json)
+          test -n "$T1"
+          test -n "$T2"
+          test "$T1" != "$T2"
+          echo "FORCED_REFRESH=PASS" >> "$RESULT_FILE"
+          echo "TIMESTAMP_CHANGES=PASS" >> "$RESULT_FILE"
+          echo "RATE_VALUES_VALID=PASS" >> "$RESULT_FILE"
+          echo "OVERALL=PASS" >> "$RESULT_FILE"
+          cat "$RESULT_FILE"
+
+      - name: Persist result
+        if: always()
+        shell: bash
+        run: |
+          if [ ! -f "$RESULT_FILE" ]; then
+            printf 'OVERALL=FAIL\n' > "$RESULT_FILE"
+          fi
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add "$RESULT_FILE"
+          git commit -m "Update Divisas refresh smoke result" || exit 0
+          git push
