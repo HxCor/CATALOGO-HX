@@ -61,6 +61,26 @@ jobs:
             FAIL=1
           fi
 
+          # Verify the deployed browser guards, not only repository source.
+          PRE_CODE=$(curl -L -sS --max-time 20 -o /tmp/security-pre.js -w "%{http_code}" "$PAGES_URL/security-pre.js?v=health")
+          POST_CODE=$(curl -L -sS --max-time 20 -o /tmp/security-post.js -w "%{http_code}" "$PAGES_URL/security-post.js?v=health")
+          record "PAGES_SECURITY_PRE_HTTP=$PRE_CODE"
+          record "PAGES_SECURITY_POST_HTTP=$POST_CODE"
+
+          if [ "$PRE_CODE" = "200" ] && grep -q 'isUsersRead && !info.authorized' /tmp/security-pre.js && grep -q "'password hash'" /tmp/security-pre.js; then
+            record "PAGES_PRELOGIN_GUARD=PASS"
+          else
+            record "PAGES_PRELOGIN_GUARD=FAIL"
+            FAIL=1
+          fi
+
+          if [ "$POST_CODE" = "200" ] && grep -q "sessionStorage.removeItem('hxSessionToken')" /tmp/security-post.js; then
+            record "PAGES_LOGOUT_GUARD=PASS"
+          else
+            record "PAGES_LOGOUT_GUARD=FAIL"
+            FAIL=1
+          fi
+
           # 2) Worker security marker and isolated runtime secrets.
           ROOT_CODE=$(curl -sS --max-time 20 -o /tmp/root.json -w "%{http_code}" "$API_BASE/")
           record "API_ROOT_HTTP=$ROOT_CODE"
