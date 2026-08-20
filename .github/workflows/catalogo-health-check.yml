@@ -5,6 +5,12 @@ on:
   push:
     branches: [main]
     paths:
+      - 'index.html'
+      - 'app.html'
+      - 'security-pre.js'
+      - 'security-post.js'
+      - 'worker/**'
+      - 'wrangler.toml'
       - '.github/workflows/catalogo-health-check.yml'
   workflow_dispatch:
 
@@ -17,6 +23,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Wait briefly for Pages and Worker propagation
+        run: sleep 8
 
       - name: Run production health checks
         id: checks
@@ -52,7 +61,24 @@ jobs:
             FAIL=1
           fi
 
-          # 2) Sensitive API endpoints should not be readable without authentication.
+          # 2) Worker security marker and isolated runtime secrets.
+          ROOT_CODE=$(curl -sS --max-time 20 -o /tmp/root.json -w "%{http_code}" "$API_BASE/")
+          record "API_ROOT_HTTP=$ROOT_CODE"
+          if [ "$ROOT_CODE" = "200" ] && grep -q '"security":"hmac-sha256-v1"' /tmp/root.json; then
+            record "API_SECURITY_MARKER=PASS"
+          else
+            record "API_SECURITY_MARKER=FAIL"
+            FAIL=1
+          fi
+
+          if grep -q '"secretIsolation":"isolated"' /tmp/root.json; then
+            record "API_SECRET_ISOLATION=PASS"
+          else
+            record "API_SECRET_ISOLATION=FAIL"
+            FAIL=1
+          fi
+
+          # 3) Sensitive API endpoints should not be readable without authentication.
           for PATH_NAME in usuarios proveedores bancos; do
             CODE=$(curl -sS --max-time 20 -o /tmp/${PATH_NAME}.json -w "%{http_code}" "$API_BASE/$PATH_NAME")
             UPPER=$(echo "$PATH_NAME" | tr '[:lower:]' '[:upper:]')
@@ -68,7 +94,7 @@ jobs:
             esac
           done
 
-          # 3) Invalid credentials must never produce a successful login or token.
+          # 4) Invalid credentials must never produce a successful login or token.
           LOGIN_CODE=$(curl -sS --max-time 20 \
             -o /tmp/login.json \
             -w "%{http_code}" \
@@ -84,7 +110,7 @@ jobs:
             record "INVALID_LOGIN_REJECTED=PASS"
           fi
 
-          # 4) Browser CORS preflight for login (JSON POST).
+          # 5) Browser CORS preflight for login (JSON POST).
           curl -sS --max-time 20 -D /tmp/cors-login.headers -o /dev/null \
             -X OPTIONS "$API_BASE/login" \
             -H "Origin: $ORIGIN" \
@@ -100,7 +126,7 @@ jobs:
             FAIL=1
           fi
 
-          # 5) Authenticated API requests use Authorization, so preflight must allow it.
+          # 6) Authenticated API requests use Authorization, so preflight must allow it.
           curl -sS --max-time 20 -D /tmp/cors-api.headers -o /dev/null \
             -X OPTIONS "$API_BASE/proveedores" \
             -H "Origin: $ORIGIN" \
