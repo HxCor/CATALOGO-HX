@@ -5,8 +5,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'worker/index-fast.js'
-      - 'worker/index-divisas.js'
+      - 'worker/**'
       - 'wrangler.toml'
       - '.github/workflows/deploy-worker.yml'
   workflow_dispatch:
