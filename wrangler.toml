@@ -1,5 +1,5 @@
 name = "catalogo-hx-backend"
-main = "worker/index-divisas.js"
+main = "worker/index-docs.js"
 compatibility_date = "2026-08-19"
 workers_dev = true
 
