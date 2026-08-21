@@ -1,0 +1,4 @@
+CHECKED_AT_UTC=2026-08-21T00:37:33Z
+TEMP_USERS=PASS
+ERROR=Admin: controles de administración no visibles
+OVERALL=FAIL
