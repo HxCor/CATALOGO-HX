@@ -1,0 +1,230 @@
+name: Catalogo HX User Visibility Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/user-visibility-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  user-visibility:
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: https://hxcor.github.io/CATALOGO-HX/
+      API_BASE: https://catalogo-hx-backend.armando-avila.workers.dev
+      AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+      AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+      USERS_TABLE_ID: tbleeFejdXclP3md1
+      RESULT_FILE: user-visibility-result.txt
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Create disposable admin and viewer
+        id: bootstrap
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : > "$RESULT_FILE"
+          echo "CHECKED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT_FILE"
+          : "${AIRTABLE_TOKEN:?AIRTABLE_TOKEN missing}"
+          : "${AIRTABLE_BASE_ID:?AIRTABLE_BASE_ID missing}"
+
+          SUFFIX="$(date +%s)-$RANDOM"
+          ADMIN_USER="uv-admin-$SUFFIX"
+          VIEWER_USER="uv-viewer-$SUFFIX"
+          ADMIN_PASS="$(openssl rand -hex 18)"
+          VIEWER_PASS="$(openssl rand -hex 18)"
+
+          jq -n \
+            --arg au "$ADMIN_USER" --arg ap "$ADMIN_PASS" \
+            --arg vu "$VIEWER_USER" --arg vp "$VIEWER_PASS" \
+            '{records:[
+              {fields:{"Nombre completo":"Visibility Temporary Admin","Usuario":$au,"Usuario (login)":$au,"Contraseña":$ap,"Rol":"admin"}},
+              {fields:{"Nombre completo":"Visibility Temporary Viewer","Usuario":$vu,"Usuario (login)":$vu,"Contraseña":$vp,"Rol":"viewer","Empresas permitidas":"GCO1110249CA"}}
+            ]}' > /tmp/users.json
+
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $AIRTABLE_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/users.json \
+            "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID" > /tmp/created.json
+
+          ADMIN_ID=$(jq -r '.records[0].id // empty' /tmp/created.json)
+          VIEWER_ID=$(jq -r '.records[1].id // empty' /tmp/created.json)
+          test -n "$ADMIN_ID" && test -n "$VIEWER_ID"
+
+          {
+            echo "admin_user=$ADMIN_USER"
+            echo "admin_pass=$ADMIN_PASS"
+            echo "viewer_user=$VIEWER_USER"
+            echo "viewer_pass=$VIEWER_PASS"
+            echo "admin_id=$ADMIN_ID"
+            echo "viewer_id=$VIEWER_ID"
+          } >> "$GITHUB_OUTPUT"
+          echo "TEMP_USERS=PASS" >> "$RESULT_FILE"
+
+      - name: Run browser role and user-list checks
+        id: browser
+        env:
+          ADMIN_USER: ${{ steps.bootstrap.outputs.admin_user }}
+          ADMIN_PASS: ${{ steps.bootstrap.outputs.admin_pass }}
+          VIEWER_USER: ${{ steps.bootstrap.outputs.viewer_user }}
+          VIEWER_PASS: ${{ steps.bootstrap.outputs.viewer_pass }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat > user-visibility-smoke.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import fs from 'node:fs';
+
+          const site = process.env.SITE_URL;
+          const api = process.env.API_BASE;
+          const resultFile = process.env.RESULT_FILE;
+          const append = line => fs.appendFileSync(resultFile, line + '\n');
+          const browser = await chromium.launch({ headless: true });
+
+          async function login(page, user, pass) {
+            await page.goto(`${site}?user-visibility=${Date.now()}-${Math.random()}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+            await page.locator('#loginUser').waitFor({ state: 'visible', timeout: 30000 });
+            await page.locator('#loginUser').fill(user);
+            await page.locator('#loginPass').fill(pass);
+            await page.locator('#btnLogin').click();
+            await page.waitForFunction(() => document.body.classList.contains('logged-in'), null, { timeout: 30000 });
+            await page.locator('#searchInput').waitFor({ state: 'visible', timeout: 30000 });
+          }
+
+          async function logout(page) {
+            await page.locator('button[onclick="doLogout()"]').click();
+            await page.locator('#loginUser').waitFor({ state: 'visible', timeout: 10000 });
+          }
+
+          try {
+            // ADMIN: lista de usuarios, roles y saneamiento visual/backend.
+            {
+              const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+              const page = await ctx.newPage();
+              await login(page, process.env.ADMIN_USER, process.env.ADMIN_PASS);
+
+              if (!(await page.locator('#adminAddBtn').isVisible())) throw new Error('Admin: controles de administración no visibles');
+              await page.locator('button[onclick="openAdminPanel()"]').click();
+              await page.locator('#adminOverlay').waitFor({ state: 'visible', timeout: 10000 });
+              await page.getByRole('button', { name: 'Usuarios', exact: true }).click();
+              await page.waitForFunction(() => document.querySelectorAll('#usersList .user-row').length >= 10, null, { timeout: 20000 });
+
+              const rows = await page.locator('#usersList .user-row').count();
+              if (rows < 10) throw new Error(`Admin: solo ${rows} usuarios renderizados`);
+              const userText = await page.locator('#usersList').innerText();
+              if (/Password Hash|Contraseña/i.test(userText)) throw new Error('Admin: se mostró un campo sensible en la lista');
+              if (!/Administrador/.test(userText) || !/Consultor/.test(userText)) throw new Error('Admin: etiquetas de rol incompletas');
+
+              const token = await page.evaluate(() => sessionStorage.getItem('hxSessionToken'));
+              const apiCheck = await page.evaluate(async ({ api, token }) => {
+                const r = await fetch(`${api}/usuarios`, { headers: { Authorization: `Bearer ${token}` } });
+                const j = await r.json();
+                return { status: r.status, j };
+              }, { api, token });
+              if (apiCheck.status !== 200 || !apiCheck.j?.ok) throw new Error('Admin: /usuarios no respondió 200');
+              const raw = JSON.stringify(apiCheck.j);
+              if (/Password Hash|Contraseña|TOTP Secret/i.test(raw)) throw new Error('Admin: backend expuso campo sensible');
+
+              append(`ADMIN_USER_LIST_ROWS=${rows}`);
+              append('ADMIN_UI_ROLES=PASS');
+              append('ADMIN_BACKEND_SANITIZATION=PASS');
+              await page.locator('#adminOverlay button[onclick*="closeOverlay"]').first().click();
+              await logout(page);
+              await ctx.close();
+            }
+
+            // VIEWER: solo una empresa autorizada y sin administración.
+            for (const [label, viewport] of [
+              ['VIEWER_DESKTOP', { width: 1440, height: 1000 }],
+              ['VIEWER_MOBILE', { width: 390, height: 844 }],
+            ]) {
+              const ctx = await browser.newContext({ viewport });
+              const page = await ctx.newPage();
+              await login(page, process.env.VIEWER_USER, process.env.VIEWER_PASS);
+              await page.waitForFunction(() => Number(document.querySelector('#statTotal')?.textContent || '-1') === 1, null, { timeout: 30000 });
+
+              const total = Number(await page.locator('#statTotal').textContent());
+              if (total !== 1) throw new Error(`${label}: total visible ${total}, esperado 1`);
+              if (await page.locator('#adminAddBtn').isVisible()) throw new Error(`${label}: botón admin visible para viewer`);
+              const adminSectionVisible = await page.locator('#adminSideSection').isVisible().catch(() => false);
+              if (adminSectionVisible) throw new Error(`${label}: sección admin visible para viewer`);
+
+              const cardText = await page.locator('#cardsGrid').innerText();
+              if (!/GHR Constructor/i.test(cardText)) throw new Error(`${label}: empresa autorizada no visible`);
+              const cards = await page.locator('#cardsGrid .pcard').count();
+              if (cards !== 1) throw new Error(`${label}: ${cards} tarjetas visibles, esperado 1`);
+
+              const token = await page.evaluate(() => sessionStorage.getItem('hxSessionToken'));
+              const forbidden = await page.evaluate(async ({ api, token }) => {
+                const r = await fetch(`${api}/usuarios`, { headers: { Authorization: `Bearer ${token}` } });
+                return r.status;
+              }, { api, token });
+              if (forbidden !== 403) throw new Error(`${label}: viewer /usuarios respondió ${forbidden}, esperado 403`);
+
+              if (viewport.width <= 600) {
+                const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+                if (overflow > 8) throw new Error(`${label}: overflow horizontal ${overflow}px`);
+              }
+
+              append(`${label}_FILTER_AND_PERMISSIONS=PASS`);
+              await logout(page);
+              await ctx.close();
+            }
+
+            append('OVERALL=PASS');
+          } catch (error) {
+            append(`ERROR=${String(error.message || error).replace(/\n/g, ' ')}`);
+            append('OVERALL=FAIL');
+            throw error;
+          } finally {
+            await browser.close();
+          }
+          JS
+          node user-visibility-smoke.mjs
+          cat "$RESULT_FILE"
+
+      - name: Remove disposable users
+        if: always()
+        env:
+          ADMIN_ID: ${{ steps.bootstrap.outputs.admin_id }}
+          VIEWER_ID: ${{ steps.bootstrap.outputs.viewer_id }}
+        shell: bash
+        run: |
+          set +e
+          for id in "$ADMIN_ID" "$VIEWER_ID"; do
+            if [ -n "$id" ]; then
+              curl -sS -X DELETE -H "Authorization: Bearer $AIRTABLE_TOKEN" \
+                "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$id" >/dev/null 2>&1 || true
+            fi
+          done
+
+      - name: Persist result
+        if: always()
+        shell: bash
+        run: |
+          if [ ! -f "$RESULT_FILE" ]; then
+            printf 'CHECKED_AT_UTC=%s\nOVERALL=FAIL\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$RESULT_FILE"
+          fi
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add "$RESULT_FILE"
+          git commit -m "Update user visibility smoke result" || exit 0
+          git push
+
+      - name: Fail if checks failed
+        if: steps.browser.outcome != 'success'
+        run: exit 1
