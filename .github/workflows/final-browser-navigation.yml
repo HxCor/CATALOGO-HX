@@ -57,7 +57,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          cat > /tmp/final-browser.mjs <<'JS'
+          cat > final-browser.mjs <<'JS'
           import { chromium } from 'playwright';
           import fs from 'node:fs';
           const result=process.env.RESULT_FILE;
@@ -109,7 +109,6 @@ jobs:
             append('DIVISAS_NAVIGATION_AND_CALCULATOR_UI=PASS');
 
             await realPointerClick(p,'#hxLaboralBtn','LABORAL_POINTER');
-            await p.locator('#hxLaboralView').waitFor({state:'visible',timeout:20000}).catch(()=>{});
             await p.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:20000});
             await p.locator('#hxliMonthly').fill('30000'); await p.locator('#hxliServiceYear').fill('1'); await p.locator('#hxliVacationDays').fill('12'); await p.locator('#hxliCalculate').click();
             await p.waitForFunction(()=>/Costo patronal mensual estimado/i.test(document.querySelector('#hxliResult')?.innerText||''),null,{timeout:30000});
@@ -133,7 +132,7 @@ jobs:
           } catch(e){ append(`ERROR=${String(e.message||e).replace(/\s+/g,'_').slice(0,400)}`); append('BROWSER_CERTIFICATION=FAIL'); append('OVERALL=FAIL'); throw e; }
           finally{ await browser.close(); }
           JS
-          node /tmp/final-browser.mjs
+          node final-browser.mjs
       - name: Remove disposable users
         if: always()
         env:
