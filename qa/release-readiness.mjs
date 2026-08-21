@@ -15,7 +15,7 @@ let fails = 0;
 let warnings = 0;
 const lines = [`CHECKED_AT_UTC=${new Date().toISOString().replace('.000','')}`];
 const tempIds = [];
-let quoteId = null;
+const quoteIds = [];
 
 function pass(name, detail='') { lines.push(`${name}=PASS${detail ? ':' + detail : ''}`); }
 function fail(name, detail='') { fails++; lines.push(`${name}=FAIL${detail ? ':' + detail : ''}`); }
@@ -65,7 +65,7 @@ function clabeMetrics(records){
 async function cleanup(){
   if(!AIRTABLE_TOKEN || !BASE) return;
   try{
-    if(quoteId) await request(`https://api.airtable.com/v0/${BASE}/${QUOTES}/${quoteId}`,{method:'DELETE',headers:atHeaders()});
+    for(const id of quoteIds) await request(`https://api.airtable.com/v0/${BASE}/${QUOTES}/${id}`,{method:'DELETE',headers:atHeaders()});
     for(const id of tempIds) await request(`https://api.airtable.com/v0/${BASE}/${USERS}/${id}`,{method:'DELETE',headers:atHeaders()});
   }catch{}
 }
@@ -76,10 +76,9 @@ try {
   if(!AIRTABLE_TOKEN || !BASE) throw new Error('Missing AIRTABLE_TOKEN/AIRTABLE_BASE_ID');
   pass('SECRETS_CONFIGURED');
 
-  // Availability and assets
   const site = await request(`${SITE}?release=${Date.now()}`);
-  if(site.status===200) pass('SITE_ONLINE'); else fail('SITE_ONLINE',`http_${site.status}`);
-  if(/Catálogo/i.test(site.text)) pass('SITE_BOOTSTRAP'); else fail('SITE_BOOTSTRAP');
+  site.status===200 ? pass('SITE_ONLINE') : fail('SITE_ONLINE',`http_${site.status}`);
+  /Catálogo/i.test(site.text) ? pass('SITE_BOOTSTRAP') : fail('SITE_BOOTSTRAP');
   let assetFail=0;
   for(const asset of ['security-pre.js','security-post.js','divisas-hx-pro.js','laboral-hx.js','laboral-despido.js','laboral-imss.js']){
     const a=await request(`${SITE}${asset}?release=${Date.now()}`); if(a.status!==200) assetFail++;
@@ -87,7 +86,6 @@ try {
   assetFail===0 ? pass('FRONTEND_ASSETS') : fail('FRONTEND_ASSETS',`missing_${assetFail}`);
   const root=await request(`${API}/`); root.status===200 ? pass('API_ONLINE') : fail('API_ONLINE',`http_${root.status}`);
 
-  // Unauthenticated and CORS security
   for(const [name,path,method,body] of [
     ['usuarios','usuarios','GET',null],['proveedores','proveedores','GET',null],['bancos','bancos','GET',null],
     ['laboral_parameters','laboral/parameters','GET',null],['laboral_imss','laboral/imss-cost','POST',{}],['divisas_current','divisas/current','GET',null]
@@ -100,7 +98,6 @@ try {
   const cors=await request(`${API}/usuarios`,{method:'OPTIONS',headers:{Origin:'https://evil.example','Access-Control-Request-Method':'GET'}});
   cors.headers.get('access-control-allow-origin')!=='https://evil.example' ? pass('CORS_EVIL_ORIGIN_BLOCKED') : fail('CORS_EVIL_ORIGIN_BLOCKED');
 
-  // Disposable real accounts
   const suffix=`${Date.now()}-${Math.floor(Math.random()*1e6)}`;
   adminUser=`release-admin-${suffix}`; viewerUser=`release-viewer-${suffix}`;
   adminPass=`A${crypto.randomUUID()}z9!`; viewerPass=`V${crypto.randomUUID()}x8!`;
@@ -111,9 +108,8 @@ try {
       {fields:{'Nombre completo':'Release Temporary Viewer','Usuario':viewerUser,'Usuario (login)':viewerUser,'Contraseña':viewerPass,'Rol':'viewer','Empresas permitidas':'GCO1110249CA'}}
     ]})
   });
-  if([200,201].includes(create.status) && create.json?.records?.length===2){
-    tempIds.push(...create.json.records.map(r=>r.id)); pass('TEMP_USERS_CREATED');
-  } else fail('TEMP_USERS_CREATED',`http_${create.status}`);
+  if([200,201].includes(create.status) && create.json?.records?.length===2){ tempIds.push(...create.json.records.map(r=>r.id)); pass('TEMP_USERS_CREATED'); }
+  else fail('TEMP_USERS_CREATED',`http_${create.status}`);
 
   const al=await request(`${API}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({usuario:adminUser,password:adminPass})});
   const vl=await request(`${API}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({usuario:viewerUser,password:viewerPass})});
@@ -121,7 +117,6 @@ try {
   adminToken ? pass('ADMIN_LOGIN') : fail('ADMIN_LOGIN',`http_${al.status}`);
   viewerToken ? pass('VIEWER_LOGIN') : fail('VIEWER_LOGIN',`http_${vl.status}`);
 
-  // Users and roles
   const au=await request(`${API}/usuarios`,{headers:auth(adminToken)});
   au.status===200 && au.json?.ok && au.json.records?.length>=10 ? pass('ADMIN_USERS_LIST') : fail('ADMIN_USERS_LIST',`http_${au.status}`);
   const sensitive=allKeys(au.json).filter(k=>/password|contraseña|totp|hash/i.test(k));
@@ -137,7 +132,6 @@ try {
   badRole===0 ? pass('USERS_ROLE_INTEGRITY') : fail('USERS_ROLE_INTEGRITY',`count_${badRole}`);
   obsolete===0 ? pass('USERS_NO_OBSOLETE_PERMISSION_RFC') : fail('USERS_NO_OBSOLETE_PERMISSION_RFC',`count_${obsolete}`);
 
-  // Providers / bank accounts / scope
   const ap=await request(`${API}/proveedores`,{headers:auth(adminToken)});
   const ab=await request(`${API}/bancos`,{headers:auth(adminToken)});
   ap.status===200 && ap.json?.ok && ap.json.records?.length===46 ? pass('PROVIDERS_ADMIN_46') : fail('PROVIDERS_ADMIN_46',`count_${ap.json?.records?.length??'na'}`);
@@ -160,46 +154,42 @@ try {
   bm.dupGroups===0 ? pass('BANK_DUPLICATE_CLABE') : warn('BANK_DUPLICATE_CLABE',`groups_${bm.dupGroups}`);
   bm.crossEntity===0 ? pass('BANK_CROSS_ENTITY_CLABE') : warn('BANK_CROSS_ENTITY_CLABE',`groups_${bm.crossEntity}`);
 
-  // Cotizador / divisas
   const rate=await request(`${API}/divisas/current`,{headers:auth(adminToken)});
   const rd=rate.json?.data;
   rate.status===200 && rate.json?.ok && Number(rd?.buy)>0 && Number(rd?.sell)>0 && Number(rd?.average)>0 ? pass('COTIZADOR_RATE_SOURCE') : fail('COTIZADOR_RATE_SOURCE',`http_${rate.status}`);
-  const amount=1000, sell=Number(rd?.sell||0), expected=Math.round(amount*sell*100)/100;
-  const q=await request(`${API}/divisas/quotes`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({amount,from:'USD',to:'MXN',rateType:'sell',rate:sell,total:expected,clientName:'Release QA'})});
-  quoteId=q.json?.record?.id || q.json?.id || null;
-  [200,201].includes(q.status) && quoteId ? pass('COTIZADOR_CREATE') : fail('COTIZADOR_CREATE',`http_${q.status}`);
-  const actual=Number(q.json?.record?.fields?.Total ?? q.json?.fields?.Total ?? q.json?.total);
-  Number.isFinite(actual) && Math.abs(actual-expected)<=0.01 ? pass('COTIZADOR_MATH') : fail('COTIZADOR_MATH',`actual_${actual}`);
-  if(quoteId){ const qdb=await request(`https://api.airtable.com/v0/${BASE}/${QUOTES}/${quoteId}`,{headers:atHeaders()}); qdb.status===200 && qdb.json?.id===quoteId ? pass('COTIZADOR_PERSISTENCE') : fail('COTIZADOR_PERSISTENCE'); }
-  const badAmt=await request(`${API}/divisas/quotes`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({amount:0,from:'USD',to:'MXN',rateType:'sell'})});
+  const amount=1000;
+  const q=await request(`${API}/divisas/quotes`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({amount,origin:'USD',destination:'MXN',rateType:'sell',provider:'HX',clientProject:'Release QA'})});
+  const qid=q.json?.record?.id || null; if(qid) quoteIds.push(qid);
+  [200,201].includes(q.status) && qid ? pass('COTIZADOR_CREATE') : fail('COTIZADOR_CREATE',`http_${q.status}`);
+  const usedRate=Number(q.json?.record?.fields?.TipoCambioUsado); const converted=Number(q.json?.record?.fields?.ResultadoConvertido); const expected=Math.round(amount*usedRate*100)/100;
+  Number.isFinite(usedRate) && Number.isFinite(converted) && Math.abs(converted-expected)<=0.01 ? pass('COTIZADOR_MATH') : fail('COTIZADOR_MATH',`rate_${usedRate}_result_${converted}`);
+  if(qid){ const qdb=await request(`https://api.airtable.com/v0/${BASE}/${QUOTES}/${qid}`,{headers:atHeaders()}); qdb.status===200 && qdb.json?.id===qid ? pass('COTIZADOR_PERSISTENCE') : fail('COTIZADOR_PERSISTENCE'); }
+  const badAmt=await request(`${API}/divisas/quotes`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({amount:0,origin:'USD',destination:'MXN',rateType:'sell'})});
   [400,422].includes(badAmt.status) ? pass('COTIZADOR_INVALID_AMOUNT_GUARD') : fail('COTIZADOR_INVALID_AMOUNT_GUARD',`http_${badAmt.status}`);
-  const badPair=await request(`${API}/divisas/quotes`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({amount:1000,from:'EUR',to:'MXN',rateType:'sell',rate:20,total:20000})});
+  const badPair=await request(`${API}/divisas/quotes`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({amount:1000,origin:'EUR',destination:'MXN',rateType:'sell'})});
   [400,422].includes(badPair.status) ? pass('COTIZADOR_PAIR_GUARD') : fail('COTIZADOR_PAIR_GUARD',`http_${badPair.status}`);
 
-  // Laboral baseline and dismissal regression
   const lp=await request(`${API}/laboral/parameters`,{headers:auth(adminToken)}); lp.status===200 && lp.json?.ok ? pass('LABORAL_PARAMETERS') : fail('LABORAL_PARAMETERS',`http_${lp.status}`);
   const lvp=await request(`${API}/laboral/parameters`,{headers:auth(viewerToken)}); lvp.status===403 ? pass('LABORAL_VIEWER_BLOCKED') : fail('LABORAL_VIEWER_BLOCKED',`http_${lvp.status}`);
-  const lb=await request(`${API}/laboral/calculate`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({monthlySalary:30000,startDate:'2024-01-01',endDate:'2026-08-21',scenario:'voluntary_resignation',pendingSalaryDays:5})});
-  lb.status===200 && lb.json?.ok && Number(lb.json?.result?.total)>0 ? pass('LABORAL_BASE_MATH') : fail('LABORAL_BASE_MATH',`http_${lb.status}`);
-  const ld=await request(`${API}/laboral/dismissal`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({monthlySalary:30000,startDate:'2024-01-01',endDate:'2026-08-21',scenario:'unjustified_dismissal',pendingSalaryDays:0,includeTwentyDaysPerYear:false})});
-  ld.status===200 && ld.json?.ok && Number(ld.json?.result?.total)>0 ? pass('LABORAL_DISMISSAL_REGRESSION') : fail('LABORAL_DISMISSAL_REGRESSION',`http_${ld.status}`);
+  const lb=await request(`${API}/laboral/calculate`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({monthlySalary:30000,startDate:'2024-01-01',endDate:'2026-08-21',scenario:'renuncia',unpaidSalaryDays:5})});
+  lb.status===200 && lb.json?.ok && Number(lb.json?.result?.calculations?.total)>0 ? pass('LABORAL_BASE_MATH') : fail('LABORAL_BASE_MATH',`http_${lb.status}`);
+  const ld=await request(`${API}/laboral/dismissal`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({monthlySalary:30000,startDate:'2024-01-01',endDate:'2026-08-21',scenario:'despido_injustificado',relationType:'indeterminado',unpaidSalaryDays:0,art49Confirmed:false})});
+  ld.status===200 && ld.json?.ok && Number(ld.json?.result?.calculations?.totalBaseEstimado)>0 && Number(ld.json?.result?.calculations?.indemnizacionConstitucional)>0 ? pass('LABORAL_DISMISSAL_REGRESSION') : fail('LABORAL_DISMISSAL_REGRESSION',`http_${ld.status}`);
 
-  // IMSS matrix
   async function imss(name,body,predicate){ const r=await request(`${API}/laboral/imss-cost`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify(body)}); if(r.status===200 && r.json?.ok && predicate(r.json.result,r.json)) pass(name); else fail(name,`http_${r.status}`); return r; }
   const baseBody={monthlySalary:30000,region:'general',serviceYear:1,vacationDays:12,aguinaldoDays:15,vacationPremiumPct:25,daysCotized:30.4,riskClass:'I'};
   await imss('IMSS_NORMAL_MATH',baseBody,r=>r?.salary?.sbcDaily===1049.32 && r?.calculations?.employerImssMonthly===5604.14 && r?.calculations?.workerQuotaWithheldMonthly===842.41 && r?.calculations?.infonavitMonthly===1594.96 && r?.calculations?.employerCostMonthly===37199.09);
   await imss('IMSS_MINIMUM_WAGE_ART36',{...baseBody,monthlySalary:9000},r=>Number(r?.salary?.sbcDaily)>0);
-  await imss('IMSS_RISK_CLASS_I',baseBody,r=>r?.inputs?.riskClass==='I');
-  await imss('IMSS_RISK_CLASS_V',{...baseBody,riskClass:'V'},r=>r?.inputs?.riskClass==='V');
-  await imss('IMSS_CUSTOM_RISK_PREMIUM',{...baseBody,riskPremiumPct:2.5},r=>r?.inputs?.riskPremiumPct===2.5);
-  await imss('IMSS_25_UMA_CAP',{...baseBody,monthlySalary:1000000},r=>Number(r?.salary?.sbcDaily)>0 && Number(r.salary.sbcDaily)<=Number(r.parameters?.umaDaily)*25+0.01);
+  await imss('IMSS_RISK_CLASS_I',baseBody,r=>r?.assumptions?.riskClass==='I');
+  await imss('IMSS_RISK_CLASS_V',{...baseBody,riskClass:'V'},r=>r?.assumptions?.riskClass==='V');
+  await imss('IMSS_CUSTOM_RISK_PREMIUM',{...baseBody,riskPremiumPct:2.5},r=>r?.assumptions?.riskPremiumPct===2.5 && r?.assumptions?.riskClass==='Personalizada');
+  await imss('IMSS_25_UMA_CAP',{...baseBody,monthlySalary:1000000},r=>r?.salary?.capApplied===true && Number(r?.salary?.sbcDaily)===Number(r?.salary?.maxSbc));
   await imss('IMSS_SUPERIOR_BENEFITS',{...baseBody,vacationDays:30,aguinaldoDays:30,vacationPremiumPct:50},r=>Number(r?.salary?.integrationFactor)>1.0493);
-  await imss('IMSS_KNOWN_SBC_OVERRIDE',{...baseBody,knownSbcDaily:1200},r=>r?.salary?.sbcDaily===1200);
+  await imss('IMSS_KNOWN_SBC_OVERRIDE',{...baseBody,knownSbcDaily:1200},r=>r?.salary?.sbcDaily===1200 && /capturado/i.test(String(r?.salary?.sbcSource||'')));
   const badRisk=await request(`${API}/laboral/imss-cost`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({...baseBody,riskClass:'VI'})}); [400,422].includes(badRisk.status)?pass('IMSS_RISK_CLASS_GUARD'):fail('IMSS_RISK_CLASS_GUARD',`http_${badRisk.status}`);
   const badPremium=await request(`${API}/laboral/imss-cost`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({...baseBody,riskPremiumPct:150})}); [400,422].includes(badPremium.status)?pass('IMSS_RISK_RANGE_GUARD'):fail('IMSS_RISK_RANGE_GUARD',`http_${badPremium.status}`);
   const vimss=await request(`${API}/laboral/imss-cost`,{method:'POST',headers:auth(viewerToken,{'Content-Type':'application/json'}),body:JSON.stringify(baseBody)}); vimss.status===403?pass('IMSS_VIEWER_BLOCKED'):fail('IMSS_VIEWER_BLOCKED',`http_${vimss.status}`);
 
-  // Browser real UI desktop + mobile
   const browser=await chromium.launch({headless:true});
   try{
     async function login(page,user,pw){
@@ -214,10 +204,10 @@ try {
     await login(p,adminUser,adminPass); await p.locator('#adminAddBtn').waitFor({state:'visible',timeout:15000}); pass('UI_ADMIN_LOGIN_AND_CONTROLS');
     await p.locator('button[onclick="openAdminPanel()"]').click(); await p.locator('#adminOverlay').waitFor({state:'visible',timeout:10000}); await p.getByRole('button',{name:'Usuarios',exact:true}).click();
     await p.waitForFunction(()=>document.querySelectorAll('#usersList .user-row').length>=10,null,{timeout:20000}); const ut=await p.locator('#usersList').innerText(); if(/Password Hash|Contraseña|TOTP/i.test(ut)) throw new Error('usuarios UI sensible'); pass('UI_USERS_ADMIN');
-    await p.locator('#adminOverlay button[onclick*="closeOverlay"]').first().click();
-    await p.locator('#hxDivisasBtn').waitFor({state:'visible',timeout:20000}); await p.locator('#hxDivisasBtn').click(); await p.locator('#hxfxCreateQuote').waitFor({state:'visible',timeout:20000});
+    await p.locator('#adminOverlay button[onclick*="closeOverlay"]').first().click(); await p.locator('#adminOverlay').waitFor({state:'hidden',timeout:10000});
+    const divBtn=p.locator('#hxDivisasBtn'); await divBtn.waitFor({state:'visible',timeout:20000}); await divBtn.scrollIntoViewIfNeeded(); await divBtn.click(); await p.locator('#hxfxCreateQuote').waitFor({state:'visible',timeout:20000});
     await p.waitForFunction(()=>{const t=document.querySelector('#hxfxAverage')?.textContent||'';return t&&t!=='—';},null,{timeout:25000}); const calc=await p.locator('#hxfxCalcResult').innerText(); if(!calc||calc==='—') throw new Error('cotizador UI vacío'); pass('UI_COTIZADOR');
-    await p.locator('#hxLaboralBtn').waitFor({state:'visible',timeout:20000}); await p.locator('#hxLaboralBtn').click(); await p.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:20000});
+    const labBtn=p.locator('#hxLaboralBtn'); await labBtn.waitFor({state:'visible',timeout:20000}); await labBtn.scrollIntoViewIfNeeded(); await labBtn.click(); await p.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:20000});
     await p.locator('#hxliMonthly').fill('30000'); await p.locator('#hxliServiceYear').fill('1'); await p.locator('#hxliVacationDays').fill('12'); await p.locator('#hxliCalculate').click();
     await p.waitForFunction(()=>/Costo patronal mensual estimado/i.test(document.querySelector('#hxliResult')?.innerText||''),null,{timeout:25000}); const it=await p.locator('#hxliResult').innerText();
     for(const m of ['SBC diario','INFONAVIT','Costo anual estimado','Fundamento del cálculo','NO ES DETERMINACIÓN OFICIAL']) if(!it.includes(m)) throw new Error(`IMSS UI sin ${m}`); pass('UI_IMSS_COMPLETE'); await actx.close();
@@ -237,9 +227,14 @@ try {
   if(AIRTABLE_TOKEN && BASE){
     try{
       const f=await request(`https://api.airtable.com/v0/${BASE}/${USERS}?pageSize=100`,{headers:atHeaders()});
-      const left=(f.json?.records||[]).filter(r=>/^(release-admin-|release-viewer-)/.test(String(r.fields?.Usuario||''))).length;
+      const all=f.json?.records||[];
+      const left=all.filter(r=>/^(release-admin-|release-viewer-)/.test(String(r.fields?.Usuario||''))).length;
       left===0 ? pass('TEMP_USERS_CLEANUP') : fail('TEMP_USERS_CLEANUP',`left_${left}`);
-    }catch(e){ fail('TEMP_USERS_CLEANUP','verification_error'); }
+      all.length===8 ? pass('REAL_USERS_FINAL_COUNT_8') : fail('REAL_USERS_FINAL_COUNT_8',`count_${all.length}`);
+      const qf=await request(`https://api.airtable.com/v0/${BASE}/${QUOTES}?pageSize=100`,{headers:atHeaders()});
+      const qleft=(qf.json?.records||[]).filter(r=>/^release-admin-/.test(String(r.fields?.Usuario||''))).length;
+      qleft===0 ? pass('TEMP_QUOTES_CLEANUP') : fail('TEMP_QUOTES_CLEANUP',`left_${qleft}`);
+    }catch(e){ fail('FINAL_CLEANUP_VERIFICATION','verification_error'); }
   }
   lines.push(`TOTAL_FAILURES=${fails}`);
   lines.push(`TOTAL_WARNINGS=${warnings}`);
