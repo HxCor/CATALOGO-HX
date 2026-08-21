@@ -1,0 +1,175 @@
+name: Laboral HX IMSS Production Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'laboral-imss.js'
+      - 'index.html'
+      - 'worker/index-laboral-imss.js'
+      - 'wrangler.toml'
+      - '.github/workflows/laboral-imss-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  imss-smoke:
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: https://hxcor.github.io/CATALOGO-HX
+      API_BASE: https://catalogo-hx-backend.armando-avila.workers.dev
+      AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+      AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+      USERS_TABLE_ID: tbleeFejdXclP3md1
+      RESULT_FILE: laboral-imss-smoke-result.txt
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Bootstrap temporary users
+        id: users
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : > "$RESULT_FILE"
+          echo "CHECKED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT_FILE"
+          : "${AIRTABLE_TOKEN:?AIRTABLE_TOKEN missing}"
+          : "${AIRTABLE_BASE_ID:?AIRTABLE_BASE_ID missing}"
+          SUFFIX="$(date +%s)-$RANDOM"
+          AU="imss-admin-$SUFFIX"; AP="$(openssl rand -hex 18)"
+          VU="imss-viewer-$SUFFIX"; VP="$(openssl rand -hex 18)"
+          jq -n --arg au "$AU" --arg ap "$AP" --arg vu "$VU" --arg vp "$VP" '{records:[
+            {fields:{"Nombre completo":"IMSS Temporary Admin","Usuario":$au,"Usuario (login)":$au,"Contraseña":$ap,"Rol":"admin"}},
+            {fields:{"Nombre completo":"IMSS Temporary Viewer","Usuario":$vu,"Usuario (login)":$vu,"Contraseña":$vp,"Rol":"viewer","Empresas permitidas":"GCO1110249CA"}}
+          ]}' > /tmp/users.json
+          curl -fsS -X POST -H "Authorization: Bearer $AIRTABLE_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/users.json "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID" > /tmp/created.json
+          AID=$(jq -r '.records[0].id // empty' /tmp/created.json); VID=$(jq -r '.records[1].id // empty' /tmp/created.json)
+          test -n "$AID" && test -n "$VID"
+          { echo "au=$AU"; echo "ap=$AP"; echo "vu=$VU"; echo "vp=$VP"; echo "aid=$AID"; echo "vid=$VID"; } >> "$GITHUB_OUTPUT"
+          echo "TEMP_USERS=PASS" >> "$RESULT_FILE"
+
+      - name: Validate IMSS engine and UI
+        id: smoke
+        env:
+          ADMIN_USER: ${{ steps.users.outputs.au }}
+          ADMIN_PASS: ${{ steps.users.outputs.ap }}
+          VIEWER_USER: ${{ steps.users.outputs.vu }}
+          VIEWER_PASS: ${{ steps.users.outputs.vp }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          trap 'echo "SMOKE_STEP_ERROR=line_${LINENO}" >> "$RESULT_FILE"' ERR
+
+          FRONT_OK=0
+          for i in $(seq 1 48); do
+            JS=$(curl -fsSL "$SITE_URL/laboral-imss.js?probe=$(date +%s)" 2>/dev/null || true)
+            if printf '%s' "$JS" | grep -q 'IMSS / Costo Patronal' && printf '%s' "$JS" | grep -q '/laboral/imss-cost'; then FRONT_OK=1; break; fi
+            sleep 5
+          done
+          test "$FRONT_OK" = "1"
+          echo "IMSS_FRONTEND_MODULE=PASS" >> "$RESULT_FILE"
+
+          ADMIN_TOKEN=$(curl -fsS -X POST -H 'Content-Type: application/json' --data "{\"usuario\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}" "$API_BASE/login" | jq -r '.token // empty')
+          VIEWER_TOKEN=$(curl -fsS -X POST -H 'Content-Type: application/json' --data "{\"usuario\":\"$VIEWER_USER\",\"password\":\"$VIEWER_PASS\"}" "$API_BASE/login" | jq -r '.token // empty')
+          test -n "$ADMIN_TOKEN" && test -n "$VIEWER_TOKEN"
+          echo "AUTH=PASS" >> "$RESULT_FILE"
+
+          API_OK=0
+          cat > /tmp/imss.json <<'JSON'
+          {"employeeName":"Prueba IMSS","monthlySalary":30000,"region":"general","serviceYear":1,"aguinaldoDays":15,"vacationDays":12,"vacationPremiumPct":25,"otherIntegrableDaily":0,"daysCotized":30.4,"riskClass":"I","riskPremiumPct":0}
+          JSON
+          for i in $(seq 1 36); do
+            CODE=$(curl -sS -o /tmp/imss-out.json -w '%{http_code}' -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/imss.json "$API_BASE/laboral/imss-cost")
+            if [ "$CODE" = "200" ] && jq -e '.ok == true' /tmp/imss-out.json >/dev/null 2>&1; then API_OK=1; break; fi
+            sleep 5
+          done
+          test "$API_OK" = "1"
+          echo "IMSS_API=PASS" >> "$RESULT_FILE"
+
+          jq -e '
+            .result.salary.sbcDaily == 1049.32 and
+            .result.salary.integrationFactor > 1.04931 and .result.salary.integrationFactor < 1.04932 and
+            .result.assumptions.ceavEmployerPct == 7.513 and
+            .result.calculations.employerImssMonthly == 5604.14 and
+            .result.calculations.workerQuotaWithheldMonthly == 842.41 and
+            .result.calculations.infonavitMonthly == 1594.96 and
+            .result.calculations.employerCostMonthly == 37199.09 and
+            .result.calculations.employerCostAnnual == 446436.49 and
+            (.result.legalBasis|length >= 8) and
+            (.result.disclaimer | contains("NO ES DETERMINACIÓN OFICIAL"))
+          ' /tmp/imss-out.json >/dev/null
+          echo "IMSS_MATH=PASS" >> "$RESULT_FILE"
+          echo "CEAV_2026=PASS" >> "$RESULT_FILE"
+          echo "LEGAL_NOTICE=PASS" >> "$RESULT_FILE"
+
+          cat > /tmp/minimum.json <<'JSON'
+          {"employeeName":"Prueba SM","monthlySalary":9451.20,"region":"general","serviceYear":1,"aguinaldoDays":15,"vacationDays":12,"vacationPremiumPct":25,"daysCotized":30.4,"riskClass":"I"}
+          JSON
+          curl -fsS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/minimum.json "$API_BASE/laboral/imss-cost" > /tmp/minimum-out.json
+          jq -e '.ok == true and .result.assumptions.minimumWageWorker == true and .result.calculations.workerQuotaWithheldMonthly == 0 and .result.calculations.workerQuotaAbsorbedMonthly > 0 and ([.result.legalBasis[].articles] | join(" ") | contains("36"))' /tmp/minimum-out.json >/dev/null
+          echo "MINIMUM_WAGE_ART36=PASS" >> "$RESULT_FILE"
+
+          VCODE=$(curl -sS -o /tmp/viewer-imss.json -w '%{http_code}' -X POST -H "Authorization: Bearer $VIEWER_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/imss.json "$API_BASE/laboral/imss-cost")
+          test "$VCODE" = "403"
+          echo "VIEWER_API_RESTRICTION=PASS" >> "$RESULT_FILE"
+
+          cat > imss-ui-smoke.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import fs from 'node:fs';
+          const append=s=>fs.appendFileSync(process.env.RESULT_FILE,s+'\n');
+          const browser=await chromium.launch({headless:true});
+          async function login(page,u,p){
+            await page.goto(`${process.env.SITE_URL}/?imss=${Date.now()}-${Math.random()}`,{waitUntil:'domcontentloaded',timeout:60000});
+            await page.locator('#loginUser').waitFor({state:'visible',timeout:30000});
+            await page.locator('#loginUser').fill(u); await page.locator('#loginPass').fill(p); await page.locator('#btnLogin').click();
+            await page.waitForFunction(()=>document.body.classList.contains('logged-in'),null,{timeout:30000});
+          }
+          try{
+            const a=await browser.newContext({viewport:{width:1440,height:1100}}),page=await a.newPage();
+            await login(page,process.env.ADMIN_USER,process.env.ADMIN_PASS);
+            await page.locator('#hxLaboralBtn').waitFor({state:'visible',timeout:20000}); await page.locator('#hxLaboralBtn').click();
+            await page.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:20000}); append('IMSS_UI=PASS');
+            await page.locator('#hxliMonthly').fill('30000'); await page.locator('#hxliServiceYear').fill('1'); await page.locator('#hxliVacationDays').fill('12'); await page.locator('#hxliCalculate').click();
+            await page.waitForFunction(()=>/Costo patronal mensual estimado/i.test(document.querySelector('#hxliResult')?.innerText||''),null,{timeout:25000});
+            const text=await page.locator('#hxliResult').innerText();
+            if(!/SBC diario/i.test(text)||!/INFONAVIT/i.test(text)||!/Costo anual estimado/i.test(text)||!/Fundamento del cálculo/i.test(text)) throw new Error('Resultado IMSS incompleto');
+            append('IMSS_CALCULATION_UI=PASS'); await a.close();
+            const v=await browser.newContext({viewport:{width:390,height:844}}),vp=await v.newPage(); await login(vp,process.env.VIEWER_USER,process.env.VIEWER_PASS);
+            if(await vp.locator('#hxLaboralBtn').isVisible().catch(()=>false)) throw new Error('Laboral visible para viewer');
+            if(await vp.locator('#hxlabImssPanel').isVisible().catch(()=>false)) throw new Error('IMSS visible para viewer');
+            append('VIEWER_UI_RESTRICTION=PASS'); await v.close();
+          }catch(e){append(`UI_ERROR=${String(e.message||e).replace(/\s+/g,' ').slice(0,500)}`);throw e;}finally{await browser.close();}
+          JS
+          RESULT_FILE="$RESULT_FILE" SITE_URL="$SITE_URL" ADMIN_USER="$ADMIN_USER" ADMIN_PASS="$ADMIN_PASS" VIEWER_USER="$VIEWER_USER" VIEWER_PASS="$VIEWER_PASS" node imss-ui-smoke.mjs
+          echo "OVERALL=PASS" >> "$RESULT_FILE"
+
+      - name: Cleanup temporary users
+        if: always()
+        env:
+          AID: ${{ steps.users.outputs.aid }}
+          VID: ${{ steps.users.outputs.vid }}
+        run: |
+          set +e
+          for id in "$AID" "$VID"; do [ -z "$id" ] || curl -sS -X DELETE -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$id" >/dev/null; done
+
+      - name: Persist result
+        if: always()
+        run: |
+          grep -q '^OVERALL=' "$RESULT_FILE" || echo "OVERALL=FAIL" >> "$RESULT_FILE"
+          git config user.name github-actions; git config user.email github-actions@github.com
+          git add "$RESULT_FILE"; git commit -m "Update Laboral HX IMSS smoke result" || exit 0
+          git pull --rebase || true; git push
+
+      - name: Fail on smoke error
+        if: steps.smoke.outcome != 'success'
+        run: exit 1
