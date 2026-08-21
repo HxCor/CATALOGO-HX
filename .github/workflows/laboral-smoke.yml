@@ -147,8 +147,12 @@ jobs:
 
           cat > /tmp/laboral-ui.mjs <<'JS'
           import { chromium } from 'playwright';
+          import fs from 'node:fs';
           const site = process.env.SITE_URL;
+          const resultFile = process.env.RESULT_FILE;
+          const append = line => fs.appendFileSync(resultFile, line + '\n');
           const browser = await chromium.launch({ headless: true });
+
           async function login(page, user, pass) {
             await page.goto(`${site}/?laboral-smoke=${Date.now()}-${Math.random()}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
             await page.locator('#loginUser').waitFor({ state: 'visible', timeout: 30000 });
@@ -157,21 +161,35 @@ jobs:
             await page.locator('#btnLogin').click();
             await page.waitForFunction(() => document.body.classList.contains('logged-in'), null, { timeout: 30000 });
           }
+
           try {
             const adminCtx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
             const adminPage = await adminCtx.newPage();
+            const browserErrors = [];
+            adminPage.on('pageerror', e => browserErrors.push(`pageerror:${e.message}`));
+            adminPage.on('console', m => { if (m.type() === 'error') browserErrors.push(`console:${m.text()}`); });
             await login(adminPage, process.env.ADMIN_USER, process.env.ADMIN_PASS);
             await adminPage.locator('#hxLaboralBtn').waitFor({ state: 'visible', timeout: 20000 });
+            append('ADMIN_MENU=PASS');
             await adminPage.locator('#hxLaboralBtn').click();
             await adminPage.locator('#hxlabCalculate').waitFor({ state: 'visible', timeout: 15000 });
+            append('ADMIN_LABORAL_VIEW=PASS');
             await adminPage.locator('#hxlabScenario').selectOption('prestaciones');
             await adminPage.locator('#hxlabStart').fill('2026-01-01');
             await adminPage.locator('#hxlabEnd').fill('2026-12-31');
             await adminPage.locator('#hxlabMonthly').fill('30000');
             await adminPage.locator('#hxlabCalculate').click();
-            await adminPage.waitForFunction(() => /30,000\.00/.test(document.querySelector('#hxlabResult')?.innerText || ''), null, { timeout: 20000 });
+            await adminPage.waitForFunction(() => {
+              const text = document.querySelector('#hxlabResult')?.innerText || '';
+              return /Total bruto estimado/i.test(text) && /Aguinaldo proporcional/i.test(text) && !/Captura los datos/i.test(text);
+            }, null, { timeout: 20000 });
+            const resultText = await adminPage.locator('#hxlabResult').innerText();
+            if (!/30[,.\s\u00a0]000/.test(resultText)) throw new Error(`Resultado visual inesperado: ${resultText.slice(0, 240)}`);
+            append('ADMIN_CALCULATION_UI=PASS');
             const notice = await adminPage.locator('.hxlab-notice').innerText();
             if (!/NO ES DETERMINACIÓN OFICIAL/i.test(notice)) throw new Error('Aviso legal obligatorio no visible');
+            append('LEGAL_NOTICE=PASS');
+            if (browserErrors.length) throw new Error(`Errores del navegador: ${browserErrors.slice(0, 4).join(' | ')}`);
             await adminCtx.close();
 
             const viewerCtx = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -179,15 +197,17 @@ jobs:
             await login(viewerPage, process.env.VIEWER_USER, process.env.VIEWER_PASS);
             const visible = await viewerPage.locator('#hxLaboralBtn').isVisible().catch(() => false);
             if (visible) throw new Error('Laboral HX visible para viewer');
+            append('VIEWER_UI_RESTRICTION=PASS');
             await viewerCtx.close();
+            append('ADMIN_UI=PASS');
+          } catch (error) {
+            append(`UI_ERROR=${String(error.message || error).replace(/\s+/g, ' ').slice(0, 600)}`);
+            throw error;
           } finally {
             await browser.close();
           }
           JS
-          SITE_URL="$SITE_URL" ADMIN_USER="$ADMIN_USER" ADMIN_PASS="$ADMIN_PASS" VIEWER_USER="$VIEWER_USER" VIEWER_PASS="$VIEWER_PASS" node /tmp/laboral-ui.mjs
-          echo "ADMIN_UI=PASS" >> "$RESULT_FILE"
-          echo "VIEWER_UI_RESTRICTION=PASS" >> "$RESULT_FILE"
-          echo "LEGAL_NOTICE=PASS" >> "$RESULT_FILE"
+          RESULT_FILE="$RESULT_FILE" SITE_URL="$SITE_URL" ADMIN_USER="$ADMIN_USER" ADMIN_PASS="$ADMIN_PASS" VIEWER_USER="$VIEWER_USER" VIEWER_PASS="$VIEWER_PASS" node /tmp/laboral-ui.mjs
           echo "OVERALL=PASS" >> "$RESULT_FILE"
           cat "$RESULT_FILE"
 
