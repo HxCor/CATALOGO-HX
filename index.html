@@ -27,13 +27,14 @@
         const divisasFixTag = '<scr' + 'ipt src="divisas-hx-pro-fix.js?v=20260820-1"></scr' + 'ipt>\n';
         const divisasRefreshTag = '<scr' + 'ipt src="divisas-refresh-fix.js?v=20260820-1"></scr' + 'ipt>\n';
         const divisasDocsTag = '<scr' + 'ipt src="divisas-document-actions.js?v=20260820-1"></scr' + 'ipt>\n';
+        const laboralTag = '<scr' + 'ipt src="laboral-hx.js?v=20260821-1"></scr' + 'ipt>\n';
 
         if (!html.includes(mainMarker)) {
           throw new Error('No se encontró el punto de inserción de seguridad.');
         }
 
         html = html.replace(mainMarker, preTag + mainMarker);
-        html = html.replace('</body>', postTag + mailTag + divisasTag + divisasFixTag + divisasRefreshTag + divisasDocsTag + '</body>');
+        html = html.replace('</body>', postTag + mailTag + divisasTag + divisasFixTag + divisasRefreshTag + divisasDocsTag + laboralTag + '</body>');
 
         document.open();
         document.write(html);
