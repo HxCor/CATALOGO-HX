@@ -5,8 +5,12 @@ on:
     branches: [main]
     paths:
       - 'laboral-hx.js'
+      - 'laboral-access.js'
+      - 'laboral-despido.js'
       - 'index.html'
       - 'worker/index-docs.js'
+      - 'worker/index-laboral-despido.js'
+      - 'wrangler.toml'
       - '.github/workflows/laboral-smoke.yml'
   workflow_dispatch:
 
@@ -42,6 +46,8 @@ jobs:
           set -Eeuo pipefail
           : > "$RESULT_FILE"
           echo "CHECKED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT_FILE"
+          : "${AIRTABLE_TOKEN:?AIRTABLE_TOKEN missing}"
+          : "${AIRTABLE_BASE_ID:?AIRTABLE_BASE_ID missing}"
           SUFFIX="$(date +%s)-$RANDOM"
           AU="lab-admin-$SUFFIX"; AP="$(openssl rand -hex 18)"
           VU="lab-viewer-$SUFFIX"; VP="$(openssl rand -hex 18)"
@@ -67,24 +73,78 @@ jobs:
           set -Eeuo pipefail
           trap 'echo "SMOKE_STEP_ERROR=line_${LINENO}" >> "$RESULT_FILE"' ERR
 
-          curl -fsSL "$SITE_URL/laboral-hx.js?probe=$(date +%s)" | grep -q 'Laboral HX'
-          echo "FRONTEND_MODULE=PASS" >> "$RESULT_FILE"
+          FRONT_OK=0
+          for i in $(seq 1 36); do
+            LAB=$(curl -fsSL "$SITE_URL/laboral-hx.js?probe=$(date +%s)" 2>/dev/null || true)
+            ACCESS=$(curl -fsSL "$SITE_URL/laboral-access.js?probe=$(date +%s)" 2>/dev/null || true)
+            DISMISS=$(curl -fsSL "$SITE_URL/laboral-despido.js?probe=$(date +%s)" 2>/dev/null || true)
+            if printf '%s' "$LAB" | grep -q 'Laboral HX' && printf '%s' "$ACCESS" | grep -q 'syncLaboralAccess' && printf '%s' "$DISMISS" | grep -q 'despido_injustificado'; then
+              FRONT_OK=1
+              break
+            fi
+            sleep 5
+          done
+          test "$FRONT_OK" = "1"
+          echo "FRONTEND_MODULES=PASS" >> "$RESULT_FILE"
 
           ADMIN_TOKEN=$(curl -fsS -X POST -H 'Content-Type: application/json' --data "{\"usuario\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}" "$API_BASE/login" | jq -r '.token // empty')
           VIEWER_TOKEN=$(curl -fsS -X POST -H 'Content-Type: application/json' --data "{\"usuario\":\"$VIEWER_USER\",\"password\":\"$VIEWER_PASS\"}" "$API_BASE/login" | jq -r '.token // empty')
           test -n "$ADMIN_TOKEN" && test -n "$VIEWER_TOKEN"
           echo "ADMIN_LOGIN=PASS" >> "$RESULT_FILE"; echo "VIEWER_LOGIN=PASS" >> "$RESULT_FILE"
 
-          curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" "$API_BASE/laboral/parameters" > /tmp/params.json
-          jq -e '.ok == true and .values.UMA_DIARIA_2026 == 117.31 and .values.SMG_GENERAL_2026 == 315.04 and (.disclaimer|length>40)' /tmp/params.json >/dev/null
+          PARAM_OK=0
+          for i in $(seq 1 24); do
+            CODE=$(curl -sS -o /tmp/params.json -w '%{http_code}' -H "Authorization: Bearer $ADMIN_TOKEN" "$API_BASE/laboral/parameters")
+            if [ "$CODE" = "200" ] && jq -e '.ok == true and .values.UMA_DIARIA_2026 == 117.31 and .values.SMG_GENERAL_2026 == 315.04 and .values.INDEMNIZACION_CONSTITUCIONAL_MESES == 3 and .values.ART50_DIAS_ANIO_INDETERMINADO == 20 and (.disclaimer|length>40)' /tmp/params.json >/dev/null; then
+              PARAM_OK=1
+              break
+            fi
+            sleep 5
+          done
+          test "$PARAM_OK" = "1"
           echo "PARAMETERS_API=PASS" >> "$RESULT_FILE"
+
           VC=$(curl -sS -o /tmp/v.json -w '%{http_code}' -H "Authorization: Bearer $VIEWER_TOKEN" "$API_BASE/laboral/parameters")
           test "$VC" = "403"
           echo "VIEWER_API_RESTRICTION=PASS" >> "$RESULT_FILE"
 
           curl -fsS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data '{"scenario":"prestaciones","startDate":"2026-01-01","endDate":"2026-12-31","monthlySalary":30000,"region":"general","aguinaldoDays":15,"vacationPremiumPct":25,"plantWorker":true}' "$API_BASE/laboral/calculate" > /tmp/calc.json
           jq -e '.ok == true and .result.calculations.aguinaldo == 15000 and .result.calculations.vacaciones == 12000 and .result.calculations.primaVacacional == 3000 and .result.calculations.total == 30000 and (.result.legalBasis|length==4)' /tmp/calc.json >/dev/null
-          echo "CALCULATION_ENGINE=PASS" >> "$RESULT_FILE"
+          echo "BASE_CALCULATION_ENGINE=PASS" >> "$RESULT_FILE"
+
+          cat > /tmp/dismissal.json <<'JSON'
+          {
+            "scenario":"despido_injustificado",
+            "relationType":"indeterminado",
+            "employeeName":"Prueba Laboral",
+            "startDate":"2025-01-01",
+            "endDate":"2026-01-01",
+            "monthlySalary":30000,
+            "region":"general",
+            "aguinaldoDays":15,
+            "vacationPremiumPct":25,
+            "plantWorker":true,
+            "art49Confirmed":false,
+            "backPayMonths":0
+          }
+          JSON
+          curl -fsS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/dismissal.json "$API_BASE/laboral/dismissal" > /tmp/dismissal-out.json
+          jq -e '.ok == true and .result.calculations.indemnizacionConstitucional > 0 and .result.calculations.indemnizacionArt50 == 0 and .result.calculations.totalBaseEstimado > .result.calculations.finiquito and (.result.disclaimer|length>40) and ([.result.legalBasis[].articles] | join(" ") | contains("48"))' /tmp/dismissal-out.json >/dev/null
+          echo "DISMISSAL_BASE_ENGINE=PASS" >> "$RESULT_FILE"
+
+          jq '.art49Confirmed=true' /tmp/dismissal.json > /tmp/dismissal-art50.json
+          curl -fsS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/dismissal-art50.json "$API_BASE/laboral/dismissal" > /tmp/dismissal-art50-out.json
+          jq -e '.ok == true and .result.calculations.indemnizacionArt50 > 0 and .result.calculations.art49Confirmed == true and ([.result.legalBasis[].articles] | join(" ") | contains("49 y 50"))' /tmp/dismissal-art50-out.json >/dev/null
+          echo "DISMISSAL_ART50_GUARD=PASS" >> "$RESULT_FILE"
+
+          jq '.scenario="despido_justificado" | .art49Confirmed=false' /tmp/dismissal.json > /tmp/dismissal-justified.json
+          curl -fsS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/dismissal-justified.json "$API_BASE/laboral/dismissal" > /tmp/dismissal-justified-out.json
+          jq -e '.ok == true and .result.calculations.indemnizacionConstitucional == 0 and .result.calculations.indemnizacionArt50 == 0 and ([.result.legalBasis[].articles] | join(" ") | contains("46 y 47"))' /tmp/dismissal-justified-out.json >/dev/null
+          echo "DISMISSAL_JUSTIFIED_GUARD=PASS" >> "$RESULT_FILE"
+
+          DVC=$(curl -sS -o /tmp/dismissal-viewer.json -w '%{http_code}' -X POST -H "Authorization: Bearer $VIEWER_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/dismissal.json "$API_BASE/laboral/dismissal")
+          test "$DVC" = "403"
+          echo "DISMISSAL_VIEWER_RESTRICTION=PASS" >> "$RESULT_FILE"
 
           cat > laboral-ui-smoke.mjs <<'JS'
           import { chromium } from 'playwright';
@@ -101,10 +161,15 @@ jobs:
             const a=await browser.newContext({viewport:{width:1440,height:1000}}), page=await a.newPage();
             await login(page,process.env.ADMIN_USER,process.env.ADMIN_PASS);
             await page.locator('#hxLaboralBtn').waitFor({state:'visible',timeout:20000}); append('ADMIN_MENU=PASS');
-            await page.locator('#hxLaboralBtn').click(); await page.locator('#hxlabCalculate').waitFor({state:'visible',timeout:15000}); append('ADMIN_LABORAL_VIEW=PASS');
+            await page.locator('#hxLaboralBtn').click();
+            await page.locator('#hxlabCalculate').waitFor({state:'visible',timeout:15000}); append('ADMIN_LABORAL_VIEW=PASS');
+            await page.locator('#hxlabDismissalPanel').waitFor({state:'visible',timeout:15000}); append('DISMISSAL_UI=PASS');
+            if(!/NO ES DETERMINACIÓN OFICIAL/i.test(await page.locator('.hxlab-notice').first().innerText())) throw new Error('Aviso legal no visible'); append('LEGAL_NOTICE=PASS');
             await page.locator('#hxlabScenario').selectOption('prestaciones'); await page.locator('#hxlabStart').fill('2026-01-01'); await page.locator('#hxlabEnd').fill('2026-12-31'); await page.locator('#hxlabMonthly').fill('30000'); await page.locator('#hxlabCalculate').click();
             await page.waitForFunction(()=>/Total bruto estimado/i.test(document.querySelector('#hxlabResult')?.innerText||''),null,{timeout:20000}); append('ADMIN_CALCULATION_UI=PASS');
-            if(!/NO ES DETERMINACIÓN OFICIAL/i.test(await page.locator('.hxlab-notice').innerText())) throw new Error('Aviso legal no visible'); append('LEGAL_NOTICE=PASS'); await a.close();
+            await page.locator('#hxldStart').fill('2025-01-01'); await page.locator('#hxldEnd').fill('2026-01-01'); await page.locator('#hxldMonthly').fill('30000'); await page.locator('#hxldCalculate').click();
+            await page.waitForFunction(()=>/Total base estimado/i.test(document.querySelector('#hxldResult')?.innerText||''),null,{timeout:20000}); append('DISMISSAL_CALCULATION_UI=PASS');
+            await a.close();
             const v=await browser.newContext({viewport:{width:390,height:844}}), vp=await v.newPage(); await login(vp,process.env.VIEWER_USER,process.env.VIEWER_PASS);
             if(await vp.locator('#hxLaboralBtn').isVisible().catch(()=>false)) throw new Error('Laboral visible para viewer'); append('VIEWER_UI_RESTRICTION=PASS'); await v.close();
             append('ADMIN_UI=PASS');
