@@ -1,5 +1,5 @@
 name = "catalogo-hx-backend"
-main = "worker/index-laboral-despido.js"
+main = "worker/index-laboral-imss.js"
 compatibility_date = "2026-08-19"
 workers_dev = true
 
