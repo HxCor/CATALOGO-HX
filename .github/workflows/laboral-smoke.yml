@@ -1,0 +1,224 @@
+name: Laboral HX Production Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'laboral-hx.js'
+      - 'index.html'
+      - 'worker/index-docs.js'
+      - '.github/workflows/laboral-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  laboral-smoke:
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: https://hxcor.github.io/CATALOGO-HX/
+      API_BASE: https://catalogo-hx-backend.armando-avila.workers.dev
+      AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+      AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+      USERS_TABLE_ID: tbleeFejdXclP3md1
+      RESULT_FILE: laboral-smoke-result.txt
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install browser runtime
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Bootstrap temporary role users
+        id: bootstrap
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : > "$RESULT_FILE"
+          echo "CHECKED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT_FILE"
+          : "${AIRTABLE_TOKEN:?AIRTABLE_TOKEN missing}"
+          : "${AIRTABLE_BASE_ID:?AIRTABLE_BASE_ID missing}"
+
+          SUFFIX="$(date +%s)-$RANDOM"
+          ADMIN_USER="lab-admin-$SUFFIX"
+          VIEWER_USER="lab-viewer-$SUFFIX"
+          ADMIN_PASS="$(openssl rand -hex 18)"
+          VIEWER_PASS="$(openssl rand -hex 18)"
+
+          jq -n --arg au "$ADMIN_USER" --arg ap "$ADMIN_PASS" --arg vu "$VIEWER_USER" --arg vp "$VIEWER_PASS" \
+            '{records:[
+              {fields:{"Nombre completo":"Laboral Temporary Admin","Usuario":$au,"Usuario (login)":$au,"Contraseña":$ap,"Rol":"admin"}},
+              {fields:{"Nombre completo":"Laboral Temporary Viewer","Usuario":$vu,"Usuario (login)":$vu,"Contraseña":$vp,"Rol":"viewer","Empresas permitidas":"GCO1110249CA"}}
+            ]}' > /tmp/lab-users.json
+
+          curl -fsS -X POST -H "Authorization: Bearer $AIRTABLE_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/lab-users.json \
+            "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID" > /tmp/lab-created.json
+
+          ADMIN_ID=$(jq -r '.records[0].id // empty' /tmp/lab-created.json)
+          VIEWER_ID=$(jq -r '.records[1].id // empty' /tmp/lab-created.json)
+          test -n "$ADMIN_ID" && test -n "$VIEWER_ID"
+          {
+            echo "admin_user=$ADMIN_USER"
+            echo "admin_pass=$ADMIN_PASS"
+            echo "viewer_user=$VIEWER_USER"
+            echo "viewer_pass=$VIEWER_PASS"
+            echo "admin_id=$ADMIN_ID"
+            echo "viewer_id=$VIEWER_ID"
+          } >> "$GITHUB_OUTPUT"
+          echo "TEMP_USERS=PASS" >> "$RESULT_FILE"
+
+      - name: Validate API and UI
+        id: smoke
+        env:
+          ADMIN_USER: ${{ steps.bootstrap.outputs.admin_user }}
+          ADMIN_PASS: ${{ steps.bootstrap.outputs.admin_pass }}
+          VIEWER_USER: ${{ steps.bootstrap.outputs.viewer_user }}
+          VIEWER_PASS: ${{ steps.bootstrap.outputs.viewer_pass }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          for i in $(seq 1 24); do
+            if curl -fsS "$SITE_URL/laboral-hx.js?probe=$(date +%s)" | grep -q 'Laboral HX'; then break; fi
+            sleep 5
+          done
+          curl -fsS "$SITE_URL/laboral-hx.js?probe=$(date +%s)" | grep -q 'Laboral HX'
+          echo "FRONTEND_MODULE=PASS" >> "$RESULT_FILE"
+
+          login() {
+            curl -fsS -X POST -H 'Content-Type: application/json' \
+              --data "{\"usuario\":\"$1\",\"password\":\"$2\"}" "$API_BASE/login"
+          }
+
+          ADMIN_LOGIN=$(login "$ADMIN_USER" "$ADMIN_PASS")
+          ADMIN_TOKEN=$(printf '%s' "$ADMIN_LOGIN" | jq -r '.token // empty')
+          test -n "$ADMIN_TOKEN"
+          echo "ADMIN_LOGIN=PASS" >> "$RESULT_FILE"
+
+          VIEWER_LOGIN=$(login "$VIEWER_USER" "$VIEWER_PASS")
+          VIEWER_TOKEN=$(printf '%s' "$VIEWER_LOGIN" | jq -r '.token // empty')
+          test -n "$VIEWER_TOKEN"
+          echo "VIEWER_LOGIN=PASS" >> "$RESULT_FILE"
+
+          for i in $(seq 1 24); do
+            CODE=$(curl -sS -o /tmp/lab-params.json -w '%{http_code}' -H "Authorization: Bearer $ADMIN_TOKEN" "$API_BASE/laboral/parameters")
+            if [ "$CODE" = "200" ] && jq -e '.ok == true and .values.SMG_GENERAL_2026 == 315.04 and .values.UMA_DIARIA_2026 == 117.31' /tmp/lab-params.json >/dev/null; then break; fi
+            sleep 5
+          done
+          test "$CODE" = "200"
+          jq -e '.ok == true and .values.SMG_GENERAL_2026 == 315.04 and .values.UMA_DIARIA_2026 == 117.31 and (.disclaimer | length > 40)' /tmp/lab-params.json >/dev/null
+          echo "PARAMETERS_API=PASS" >> "$RESULT_FILE"
+
+          VIEWER_CODE=$(curl -sS -o /tmp/lab-viewer.json -w '%{http_code}' -H "Authorization: Bearer $VIEWER_TOKEN" "$API_BASE/laboral/parameters")
+          test "$VIEWER_CODE" = "403"
+          echo "VIEWER_API_RESTRICTION=PASS" >> "$RESULT_FILE"
+
+          cat > /tmp/calc.json <<'JSON'
+          {
+            "scenario":"prestaciones",
+            "startDate":"2026-01-01",
+            "endDate":"2026-12-31",
+            "monthlySalary":30000,
+            "region":"general",
+            "unpaidSalaryDays":0,
+            "pendingVacationDays":0,
+            "aguinaldoDays":15,
+            "vacationPremiumPct":25,
+            "contractualVacationDays":0,
+            "plantWorker":true
+          }
+          JSON
+          CALC_CODE=$(curl -sS -o /tmp/lab-calc.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/calc.json "$API_BASE/laboral/calculate")
+          test "$CALC_CODE" = "200"
+          jq -e '.ok == true and .result.calculations.aguinaldo == 15000 and .result.calculations.vacaciones == 12000 and .result.calculations.primaVacacional == 3000 and .result.calculations.total == 30000 and (.result.legalBasis | length == 4)' /tmp/lab-calc.json >/dev/null
+          echo "CALCULATION_ENGINE=PASS" >> "$RESULT_FILE"
+
+          cat > /tmp/laboral-ui.mjs <<'JS'
+          import { chromium } from 'playwright';
+          const site = process.env.SITE_URL;
+          const browser = await chromium.launch({ headless: true });
+          async function login(page, user, pass) {
+            await page.goto(`${site}?laboral-smoke=${Date.now()}-${Math.random()}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+            await page.locator('#loginUser').waitFor({ state: 'visible', timeout: 30000 });
+            await page.locator('#loginUser').fill(user);
+            await page.locator('#loginPass').fill(pass);
+            await page.locator('#btnLogin').click();
+            await page.waitForFunction(() => document.body.classList.contains('logged-in'), null, { timeout: 30000 });
+          }
+          try {
+            const adminCtx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+            const adminPage = await adminCtx.newPage();
+            await login(adminPage, process.env.ADMIN_USER, process.env.ADMIN_PASS);
+            await adminPage.locator('#hxLaboralBtn').waitFor({ state: 'visible', timeout: 20000 });
+            await adminPage.locator('#hxLaboralBtn').click();
+            await adminPage.locator('#hxlabCalculate').waitFor({ state: 'visible', timeout: 15000 });
+            await adminPage.locator('#hxlabScenario').selectOption('prestaciones');
+            await adminPage.locator('#hxlabStart').fill('2026-01-01');
+            await adminPage.locator('#hxlabEnd').fill('2026-12-31');
+            await adminPage.locator('#hxlabMonthly').fill('30000');
+            await adminPage.locator('#hxlabCalculate').click();
+            await adminPage.waitForFunction(() => /30,000\.00/.test(document.querySelector('#hxlabResult')?.innerText || ''), null, { timeout: 20000 });
+            const notice = await adminPage.locator('.hxlab-notice').innerText();
+            if (!/NO ES DETERMINACIÓN OFICIAL/i.test(notice)) throw new Error('Aviso legal obligatorio no visible');
+            await adminCtx.close();
+
+            const viewerCtx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+            const viewerPage = await viewerCtx.newPage();
+            await login(viewerPage, process.env.VIEWER_USER, process.env.VIEWER_PASS);
+            const visible = await viewerPage.locator('#hxLaboralBtn').isVisible().catch(() => false);
+            if (visible) throw new Error('Laboral HX visible para viewer');
+            await viewerCtx.close();
+          } finally {
+            await browser.close();
+          }
+          JS
+          SITE_URL="$SITE_URL" ADMIN_USER="$ADMIN_USER" ADMIN_PASS="$ADMIN_PASS" VIEWER_USER="$VIEWER_USER" VIEWER_PASS="$VIEWER_PASS" node /tmp/laboral-ui.mjs
+          echo "ADMIN_UI=PASS" >> "$RESULT_FILE"
+          echo "VIEWER_UI_RESTRICTION=PASS" >> "$RESULT_FILE"
+          echo "LEGAL_NOTICE=PASS" >> "$RESULT_FILE"
+          echo "OVERALL=PASS" >> "$RESULT_FILE"
+          cat "$RESULT_FILE"
+
+      - name: Remove temporary users
+        if: always()
+        env:
+          ADMIN_ID: ${{ steps.bootstrap.outputs.admin_id }}
+          VIEWER_ID: ${{ steps.bootstrap.outputs.viewer_id }}
+        shell: bash
+        run: |
+          set +e
+          for id in "$ADMIN_ID" "$VIEWER_ID"; do
+            if [ -n "$id" ]; then
+              curl -sS -X DELETE -H "Authorization: Bearer $AIRTABLE_TOKEN" \
+                "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$id" >/dev/null 2>&1 || true
+            fi
+          done
+
+      - name: Persist result
+        if: always()
+        shell: bash
+        run: |
+          if [ ! -f "$RESULT_FILE" ]; then
+            printf 'CHECKED_AT_UTC=%s\nOVERALL=FAIL\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$RESULT_FILE"
+          elif ! grep -q '^OVERALL=' "$RESULT_FILE"; then
+            echo "OVERALL=FAIL" >> "$RESULT_FILE"
+          fi
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add "$RESULT_FILE"
+          git commit -m "Update Laboral HX smoke result" || exit 0
+          git pull --rebase || true
+          git push
+
+      - name: Fail on smoke error
+        if: steps.smoke.outcome != 'success'
+        run: exit 1
