@@ -1,5 +1,5 @@
 name = "catalogo-hx-backend"
-main = "worker/index-docs.js"
+main = "worker/index-laboral-despido.js"
 compatibility_date = "2026-08-19"
 workers_dev = true
 
@@ -11,6 +11,7 @@ AIRTABLE_TABLE_USUARIOS = "USUARIOS"
 AIRTABLE_TABLE_DIVISAS_LOG = "DIVISAS_LOG"
 AIRTABLE_TABLE_DIVISAS_COTIZACIONES = "DIVISAS_COTIZACIONES"
 AIRTABLE_TABLE_DIVISAS_ALERTAS = "DIVISAS_ALERTAS"
+AIRTABLE_TABLE_LABORAL_PARAMETROS = "LABORAL_PARAMETROS"
 
 # Secrets are NOT stored in this repository.
 # Required in Cloudflare Worker Settings > Variables and Secrets:
