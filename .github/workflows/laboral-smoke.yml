@@ -17,7 +17,7 @@ jobs:
   laboral-smoke:
     runs-on: ubuntu-latest
     env:
-      SITE_URL: https://hxcor.github.io/CATALOGO-HX/
+      SITE_URL: https://hxcor.github.io/CATALOGO-HX
       API_BASE: https://catalogo-hx-backend.armando-avila.workers.dev
       AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
       AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
@@ -84,12 +84,14 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          trap 'echo "SMOKE_STEP_ERROR=line_${LINENO}" >> "$RESULT_FILE"' ERR
 
+          FRONT_OK=0
           for i in $(seq 1 24); do
-            if curl -fsS "$SITE_URL/laboral-hx.js?probe=$(date +%s)" | grep -q 'Laboral HX'; then break; fi
+            if curl -fsSL "$SITE_URL/laboral-hx.js?probe=$(date +%s)" | grep -q 'Laboral HX'; then FRONT_OK=1; break; fi
             sleep 5
           done
-          curl -fsS "$SITE_URL/laboral-hx.js?probe=$(date +%s)" | grep -q 'Laboral HX'
+          test "$FRONT_OK" = "1"
           echo "FRONTEND_MODULE=PASS" >> "$RESULT_FILE"
 
           login() {
@@ -107,12 +109,13 @@ jobs:
           test -n "$VIEWER_TOKEN"
           echo "VIEWER_LOGIN=PASS" >> "$RESULT_FILE"
 
+          PARAM_OK=0
           for i in $(seq 1 24); do
             CODE=$(curl -sS -o /tmp/lab-params.json -w '%{http_code}' -H "Authorization: Bearer $ADMIN_TOKEN" "$API_BASE/laboral/parameters")
-            if [ "$CODE" = "200" ] && jq -e '.ok == true and .values.SMG_GENERAL_2026 == 315.04 and .values.UMA_DIARIA_2026 == 117.31' /tmp/lab-params.json >/dev/null; then break; fi
+            if [ "$CODE" = "200" ] && jq -e '.ok == true and .values.SMG_GENERAL_2026 == 315.04 and .values.UMA_DIARIA_2026 == 117.31' /tmp/lab-params.json >/dev/null; then PARAM_OK=1; break; fi
             sleep 5
           done
-          test "$CODE" = "200"
+          test "$PARAM_OK" = "1"
           jq -e '.ok == true and .values.SMG_GENERAL_2026 == 315.04 and .values.UMA_DIARIA_2026 == 117.31 and (.disclaimer | length > 40)' /tmp/lab-params.json >/dev/null
           echo "PARAMETERS_API=PASS" >> "$RESULT_FILE"
 
@@ -147,7 +150,7 @@ jobs:
           const site = process.env.SITE_URL;
           const browser = await chromium.launch({ headless: true });
           async function login(page, user, pass) {
-            await page.goto(`${site}?laboral-smoke=${Date.now()}-${Math.random()}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+            await page.goto(`${site}/?laboral-smoke=${Date.now()}-${Math.random()}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
             await page.locator('#loginUser').waitFor({ state: 'visible', timeout: 30000 });
             await page.locator('#loginUser').fill(user);
             await page.locator('#loginPass').fill(pass);
