@@ -1,0 +1,182 @@
+name: CATALOGO-HX Final Certification V3
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/final-certification-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: https://hxcor.github.io/CATALOGO-HX/
+      AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+      AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+      USERS_TABLE_ID: tbleeFejdXclP3md1
+      RESULT_FILE: final-certification-v3-result.txt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Initialize result
+        shell: bash
+        run: |
+          : > "$RESULT_FILE"
+          echo "CHECKED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT_FILE"
+
+      - name: Install Playwright
+        shell: bash
+        run: |
+          set +e
+          npm install --no-save playwright@1.55.0
+          A=$?
+          npx playwright install --with-deps chromium
+          B=$?
+          if [ "$A" = 0 ] && [ "$B" = 0 ]; then echo 'PLAYWRIGHT_INSTALL=PASS' >> "$RESULT_FILE"; else echo "PLAYWRIGHT_INSTALL=FAIL:npm_$A_browser_$B" >> "$RESULT_FILE"; fi
+          exit 0
+
+      - name: Create disposable users
+        id: users
+        shell: bash
+        run: |
+          set +e
+          SUFFIX="$(date +%s)-$RANDOM"
+          AU="cert-v3-admin-$SUFFIX"; AP="$(openssl rand -hex 18)"
+          VU="cert-v3-viewer-$SUFFIX"; VP="$(openssl rand -hex 18)"
+          jq -n --arg au "$AU" --arg ap "$AP" --arg vu "$VU" --arg vp "$VP" '{records:[
+            {fields:{"Nombre completo":"Certification V3 Temporary Admin","Usuario":$au,"Usuario (login)":$au,"Contraseña":$ap,"Rol":"admin"}},
+            {fields:{"Nombre completo":"Certification V3 Temporary Viewer","Usuario":$vu,"Usuario (login)":$vu,"Contraseña":$vp,"Rol":"viewer","Empresas permitidas":"GCO1110249CA"}}
+          ]}' > /tmp/users-v3.json
+          curl -sS -X POST -H "Authorization: Bearer $AIRTABLE_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/users-v3.json "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID" > /tmp/created-v3.json
+          AID=$(jq -r '.records[0].id // empty' /tmp/created-v3.json); VID=$(jq -r '.records[1].id // empty' /tmp/created-v3.json)
+          if [ -n "$AID" ] && [ -n "$VID" ]; then echo 'TEMP_USERS_CREATED=PASS' >> "$RESULT_FILE"; else echo 'TEMP_USERS_CREATED=FAIL' >> "$RESULT_FILE"; fi
+          { echo "au=$AU"; echo "ap=$AP"; echo "vu=$VU"; echo "vp=$VP"; echo "aid=$AID"; echo "vid=$VID"; } >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Run browser certification
+        env:
+          AU: ${{ steps.users.outputs.au }}
+          AP: ${{ steps.users.outputs.ap }}
+          VU: ${{ steps.users.outputs.vu }}
+          VP: ${{ steps.users.outputs.vp }}
+        shell: bash
+        run: |
+          cat > final-cert-v3.mjs <<'JS'
+          import fs from 'node:fs';
+          const result=process.env.RESULT_FILE;
+          const append=s=>fs.appendFileSync(result,s+'\n');
+          let browser=null;
+          async function login(page,u,p){
+            await page.goto(`${process.env.SITE_URL}?cert-v3=${Date.now()}-${Math.random()}`,{waitUntil:'domcontentloaded',timeout:60000});
+            await page.locator('#loginUser').waitFor({state:'visible',timeout:30000});
+            await page.locator('#loginUser').fill(u);
+            await page.locator('#loginPass').fill(p);
+            await page.locator('#btnLogin').click();
+            await page.waitForFunction(()=>document.body.classList.contains('logged-in'),null,{timeout:30000});
+            await page.waitForFunction(()=>document.body.classList.contains('is-admin')||document.body.classList.contains('is-viewer'),null,{timeout:30000});
+            await page.locator('#searchInput').waitFor({state:'visible',timeout:30000});
+          }
+          async function pointerClick(page,selector,label){
+            const loc=page.locator(selector);
+            await loc.waitFor({state:'visible',timeout:20000});
+            await loc.evaluate(el=>el.scrollIntoView({block:'center',inline:'center'}));
+            await page.waitForTimeout(300);
+            const box=await loc.boundingBox();
+            if(!box) throw new Error(`${label}:no_bounding_box`);
+            const x=box.x+box.width/2, y=box.y+box.height/2;
+            const hit=await page.evaluate(({x,y,selector})=>{
+              const target=document.querySelector(selector), at=document.elementFromPoint(x,y);
+              return {same:!!target&&!!at&&(at===target||target.contains(at)),hitTag:at?.tagName||'',hitId:at?.id||'',hitClass:String(at?.className||''),display:target?getComputedStyle(target).display:'',visibility:target?getComputedStyle(target).visibility:'',pointerEvents:target?getComputedStyle(target).pointerEvents:''};
+            },{x,y,selector});
+            append(`${label}_HIT=${hit.same?'PASS':'FAIL'}:${JSON.stringify(hit).replace(/\s+/g,'_')}`);
+            if(!hit.same) throw new Error(`${label}:blocked_by_${hit.hitTag}_${hit.hitId}_${hit.hitClass}`);
+            await page.mouse.click(x,y);
+          }
+          try{
+            append('BROWSER_RUNTIME_START=PASS');
+            const { chromium }=await import('playwright');
+            append('PLAYWRIGHT_MODULE=PASS');
+            browser=await chromium.launch({headless:true});
+            append('CHROMIUM_LAUNCH=PASS');
+
+            const ctx=await browser.newContext({viewport:{width:1440,height:1100}}),p=await ctx.newPage();
+            await login(p,process.env.AU,process.env.AP); append('ADMIN_LOGIN_UI=PASS');
+            await p.locator('button[onclick="openAdminPanel()"]').click();
+            await p.locator('#adminOverlay').waitFor({state:'visible',timeout:10000});
+            await p.getByRole('button',{name:'Usuarios',exact:true}).click();
+            await p.waitForFunction(()=>document.querySelectorAll('#usersList .user-row').length>=10,null,{timeout:20000}); append('ADMIN_USERS_UI=PASS');
+            await p.locator('#adminOverlay button[onclick*="closeOverlay"]').first().click();
+            await p.locator('#adminOverlay').waitFor({state:'hidden',timeout:10000}); append('ADMIN_OVERLAY_CLOSE=PASS');
+
+            await pointerClick(p,'#hxDivisasBtn','DIVISAS_POINTER');
+            await p.locator('#hxDivisasView').waitFor({state:'visible',timeout:20000});
+            await p.locator('#hxfxCreateQuote').waitFor({state:'visible',timeout:20000});
+            await p.waitForFunction(()=>{const t=document.querySelector('#hxfxAverage')?.textContent||'';return t&&t!=='—';},null,{timeout:30000});
+            const fx=await p.locator('#hxfxCalcResult').innerText(); if(!fx||fx==='—') throw new Error('divisas_result_empty'); append('DIVISAS_NAVIGATION_AND_CALCULATOR_UI=PASS');
+
+            await pointerClick(p,'#hxLaboralBtn','LABORAL_POINTER');
+            await p.locator('#hxLaboralView').waitFor({state:'visible',timeout:20000});
+            await p.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:20000});
+            await p.locator('#hxliMonthly').fill('30000');
+            await p.locator('#hxliServiceYear').fill('1');
+            await p.locator('#hxliVacationDays').fill('12');
+            await p.locator('#hxliCalculate').click();
+            await p.waitForFunction(()=>/Costo patronal mensual estimado/i.test(document.querySelector('#hxliResult')?.innerText||''),null,{timeout:30000});
+            const im=await p.locator('#hxliResult').innerText();
+            for(const m of ['SBC diario','INFONAVIT','Costo anual estimado','Fundamento del cálculo','NO ES DETERMINACIÓN OFICIAL']) if(!im.includes(m)) throw new Error(`imss_missing_${m}`);
+            append('LABORAL_IMSS_NAVIGATION_AND_UI=PASS');
+            await ctx.close();
+
+            for(const [label,viewport] of [['VIEWER_DESKTOP',{width:1440,height:1000}],['VIEWER_MOBILE',{width:390,height:844}]]){
+              const c=await browser.newContext({viewport}),v=await c.newPage(); await login(v,process.env.VU,process.env.VP);
+              await v.waitForFunction(()=>Number(document.querySelector('#statTotal')?.textContent||'-1')===1,null,{timeout:30000});
+              const cards=await v.locator('#cardsGrid .pcard').count(), text=await v.locator('#cardsGrid').innerText();
+              if(cards!==1||!/GHR Constructor/i.test(text)) throw new Error(`${label}_provider_scope`);
+              if(await v.locator('#adminSideSection').isVisible().catch(()=>false)) throw new Error(`${label}_admin_visible`);
+              if(await v.locator('#hxLaboralBtn').isVisible().catch(()=>false)) throw new Error(`${label}_laboral_visible`);
+              if(viewport.width<600){const ov=await v.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth); if(ov>8) throw new Error(`${label}_overflow_${ov}`);}
+              append(`${label}_PERMISSIONS_LAYOUT=PASS`); await c.close();
+            }
+            append('BROWSER_CERTIFICATION=PASS'); append('OVERALL=PASS');
+          }catch(e){append(`ERROR=${String(e.message||e).replace(/\s+/g,'_').slice(0,500)}`);append('BROWSER_CERTIFICATION=FAIL');append('OVERALL=FAIL');}
+          finally{if(browser)await browser.close();}
+          JS
+          node final-cert-v3.mjs || true
+
+      - name: Cleanup and persist
+        if: always()
+        env:
+          AID: ${{ steps.users.outputs.aid }}
+          VID: ${{ steps.users.outputs.vid }}
+        shell: bash
+        run: |
+          set +e
+          for id in "$AID" "$VID"; do [ -z "$id" ] || curl -sS -X DELETE -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$id" >/dev/null; done
+          sleep 2
+          curl -fsS -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID?pageSize=100" > /tmp/final-v3-users.json
+          LEFT=$(jq '[.records[].fields.Usuario // "" | select(startswith("cert-v3-admin-") or startswith("cert-v3-viewer-"))] | length' /tmp/final-v3-users.json)
+          COUNT=$(jq '.records|length' /tmp/final-v3-users.json)
+          [ "$LEFT" = 0 ] && echo 'TEMP_USERS_CLEANUP=PASS' >> "$RESULT_FILE" || echo "TEMP_USERS_CLEANUP=FAIL:left_$LEFT" >> "$RESULT_FILE"
+          [ "$COUNT" = 8 ] && echo 'REAL_USERS_FINAL_COUNT_8=PASS' >> "$RESULT_FILE" || echo "REAL_USERS_FINAL_COUNT_8=FAIL:count_$COUNT" >> "$RESULT_FILE"
+          cat "$RESULT_FILE"
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add "$RESULT_FILE"
+          git commit -m "Update final certification V3 result" || exit 0
+          git pull --rebase || true
+          git push
+
+      - name: Enforce certification
+        if: always()
+        shell: bash
+        run: |
+          grep -q '^PLAYWRIGHT_INSTALL=PASS$' "$RESULT_FILE" || exit 1
+          grep -q '^BROWSER_CERTIFICATION=PASS$' "$RESULT_FILE" || exit 1
+          grep -q '^OVERALL=PASS$' "$RESULT_FILE" || exit 1
