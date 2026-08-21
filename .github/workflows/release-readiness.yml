@@ -1,0 +1,340 @@
+name: CATALOGO-HX Release Readiness
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release-readiness:
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: https://hxcor.github.io/CATALOGO-HX/
+      API_BASE: https://catalogo-hx-backend.armando-avila.workers.dev
+      AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+      AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+      USERS_TABLE_ID: tbleeFejdXclP3md1
+      PROVIDERS_TABLE_ID: tblkWbENo3IUGAoB6
+      BANKS_TABLE_ID: tblheU9qbfFJUYmDh
+      QUOTES_TABLE_ID: tblqEJCKK7Ers6GWi
+      RESULT_FILE: release-readiness-result.txt
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run API, data and calculation audit
+        id: api
+        shell: bash
+        run: |
+          set -uo pipefail
+          : > "$RESULT_FILE"
+          echo "CHECKED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT_FILE"
+          FAILS=0; WARNS=0; AID=""; VID=""; QUOTE_ID=""
+          pass(){ echo "$1=PASS" >> "$RESULT_FILE"; }
+          fail(){ echo "$1=FAIL${2:+:$2}" >> "$RESULT_FILE"; FAILS=$((FAILS+1)); }
+          warn(){ echo "$1=WARNING${2:+:$2}" >> "$RESULT_FILE"; WARNS=$((WARNS+1)); }
+
+          cleanup(){
+            set +e
+            [ -z "${QUOTE_ID:-}" ] || curl -sS -X DELETE -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$QUOTES_TABLE_ID/$QUOTE_ID" >/dev/null
+            for id in "${AID:-}" "${VID:-}"; do
+              [ -z "$id" ] || curl -sS -X DELETE -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$id" >/dev/null
+            done
+          }
+          trap cleanup EXIT
+
+          if [ -z "${AIRTABLE_TOKEN:-}" ] || [ -z "${AIRTABLE_BASE_ID:-}" ]; then fail SECRETS_CONFIGURED missing; else pass SECRETS_CONFIGURED; fi
+
+          # Availability / frontend assets / API
+          SITE_CODE=$(curl -sSL -o /tmp/site.html -w '%{http_code}' "$SITE_URL?release=$(date +%s)")
+          [ "$SITE_CODE" = 200 ] && pass SITE_ONLINE || fail SITE_ONLINE "http_$SITE_CODE"
+          grep -q 'Catálogo' /tmp/site.html && pass SITE_BOOTSTRAP || fail SITE_BOOTSTRAP
+          ASSET_FAIL=0
+          for asset in security-pre.js security-post.js divisas-hx-pro.js laboral-hx.js laboral-despido.js laboral-imss.js; do
+            CODE=$(curl -sSL -o "/tmp/$asset" -w '%{http_code}' "$SITE_URL$asset?release=$(date +%s)")
+            [ "$CODE" = 200 ] || ASSET_FAIL=1
+          done
+          [ "$ASSET_FAIL" = 0 ] && pass FRONTEND_ASSETS || fail FRONTEND_ASSETS
+          API_CODE=$(curl -sS -o /tmp/api.json -w '%{http_code}' "$API_BASE/")
+          [ "$API_CODE" = 200 ] && pass API_ONLINE || fail API_ONLINE "http_$API_CODE"
+
+          # Security without session
+          for path in usuarios proveedores bancos laboral/parameters laboral/imss-cost divisas/current; do
+            if [ "$path" = 'laboral/imss-cost' ]; then
+              CODE=$(curl -sS -o /tmp/unauth.json -w '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{}' "$API_BASE/$path")
+            else
+              CODE=$(curl -sS -o /tmp/unauth.json -w '%{http_code}' "$API_BASE/$path")
+            fi
+            if [[ "$CODE" = 401 || "$CODE" = 403 ]]; then pass "UNAUTH_${path//\//_}"; else fail "UNAUTH_${path//\//_}" "http_$CODE"; fi
+          done
+          BAD=$(curl -sS -o /tmp/bad.json -w '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{"usuario":"__release_invalid__","password":"__release_invalid__"}' "$API_BASE/login")
+          [ "$BAD" = 401 ] && pass INVALID_LOGIN_REJECTED || fail INVALID_LOGIN_REJECTED "http_$BAD"
+          CORS=$(curl -sS -D /tmp/cors-h -o /dev/null -X OPTIONS -H 'Origin: https://evil.example' -H 'Access-Control-Request-Method: GET' "$API_BASE/usuarios" -w '%{http_code}')
+          if ! grep -qi 'access-control-allow-origin: https://evil.example' /tmp/cors-h; then pass CORS_EVIL_ORIGIN_BLOCKED; else fail CORS_EVIL_ORIGIN_BLOCKED "http_$CORS"; fi
+
+          # Disposable admin + restricted viewer
+          SUFFIX="$(date +%s)-$RANDOM"; AU="release-admin-$SUFFIX"; AP="$(openssl rand -hex 18)"; VU="release-viewer-$SUFFIX"; VP="$(openssl rand -hex 18)"
+          jq -n --arg au "$AU" --arg ap "$AP" --arg vu "$VU" --arg vp "$VP" '{records:[
+            {fields:{"Nombre completo":"Release Temporary Admin","Usuario":$au,"Usuario (login)":$au,"Contraseña":$ap,"Rol":"admin"}},
+            {fields:{"Nombre completo":"Release Temporary Viewer","Usuario":$vu,"Usuario (login)":$vu,"Contraseña":$vp,"Rol":"viewer","Empresas permitidas":"GCO1110249CA"}}
+          ]}' > /tmp/users-new.json
+          UC=$(curl -sS -o /tmp/users-created.json -w '%{http_code}' -X POST -H "Authorization: Bearer $AIRTABLE_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/users-new.json "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID")
+          AID=$(jq -r '.records[0].id // empty' /tmp/users-created.json); VID=$(jq -r '.records[1].id // empty' /tmp/users-created.json)
+          if [[ "$UC" =~ ^20[01]$ ]] && [ -n "$AID" ] && [ -n "$VID" ]; then pass TEMP_USERS_CREATED; else fail TEMP_USERS_CREATED "http_$UC"; fi
+          ADMIN_TOKEN=$(curl -sS -X POST -H 'Content-Type: application/json' --data "{\"usuario\":\"$AU\",\"password\":\"$AP\"}" "$API_BASE/login" | jq -r '.token // empty')
+          VIEWER_TOKEN=$(curl -sS -X POST -H 'Content-Type: application/json' --data "{\"usuario\":\"$VU\",\"password\":\"$VP\"}" "$API_BASE/login" | jq -r '.token // empty')
+          [ -n "$ADMIN_TOKEN" ] && pass ADMIN_LOGIN || fail ADMIN_LOGIN
+          [ -n "$VIEWER_TOKEN" ] && pass VIEWER_LOGIN || fail VIEWER_LOGIN
+
+          # User security and role integrity
+          UCODE=$(curl -sS -o /tmp/admin-users.json -w '%{http_code}' -H "Authorization: Bearer $ADMIN_TOKEN" "$API_BASE/usuarios")
+          if [ "$UCODE" = 200 ] && jq -e '.ok==true and (.records|length>=10)' /tmp/admin-users.json >/dev/null; then pass ADMIN_USERS_LIST; else fail ADMIN_USERS_LIST "http_$UCODE"; fi
+          if jq -e '[..|objects|keys[]?|select(test("password|contraseña|totp|hash";"i"))]|length==0' /tmp/admin-users.json >/dev/null; then pass USERS_API_SANITIZED; else fail USERS_API_SANITIZED; fi
+          VUC=$(curl -sS -o /tmp/viewer-users.json -w '%{http_code}' -H "Authorization: Bearer $VIEWER_TOKEN" "$API_BASE/usuarios")
+          [ "$VUC" = 403 ] && pass VIEWER_USERS_BLOCKED || fail VIEWER_USERS_BLOCKED "http_$VUC"
+
+          curl -fsS -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID?pageSize=100" > /tmp/users-db.json
+          python3 - <<'PY' > /tmp/users-metrics.json
+          import json
+          rows=json.load(open('/tmp/users-db.json')).get('records',[])
+          logins=[]; plain=0; badrole=0; obsolete=0
+          for r in rows:
+              f=r.get('fields',{})
+              u=(f.get('Usuario (login)') or f.get('Usuario') or '').strip().lower()
+              if u: logins.append(u)
+              if f.get('Contraseña'): plain+=1
+              if str(f.get('Rol','')).lower() not in ('admin','viewer'): badrole+=1
+              if 'PRU010101AAA' in str(f.get('Empresas permitidas','')): obsolete+=1
+          print(json.dumps({'rows':len(rows),'plain':plain,'dup_login':len(logins)-len(set(logins)),'badrole':badrole,'obsolete':obsolete}))
+          PY
+          jq -e '.plain==0' /tmp/users-metrics.json >/dev/null && pass USERS_NO_PLAINTEXT_PASSWORDS || fail USERS_NO_PLAINTEXT_PASSWORDS
+          jq -e '.dup_login==0' /tmp/users-metrics.json >/dev/null && pass USERS_LOGIN_UNIQUENESS || fail USERS_LOGIN_UNIQUENESS
+          jq -e '.badrole==0' /tmp/users-metrics.json >/dev/null && pass USERS_ROLE_INTEGRITY || fail USERS_ROLE_INTEGRITY
+          jq -e '.obsolete==0' /tmp/users-metrics.json >/dev/null && pass USERS_NO_OBSOLETE_PERMISSION_RFC || fail USERS_NO_OBSOLETE_PERMISSION_RFC
+
+          # Accounts and permission scope
+          curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" "$API_BASE/proveedores" > /tmp/aprov.json
+          curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" "$API_BASE/bancos" > /tmp/abank.json
+          jq -e '.ok==true and (.records|length==46)' /tmp/aprov.json >/dev/null && pass PROVIDERS_ADMIN_46 || fail PROVIDERS_ADMIN_46
+          jq -e '.ok==true and (.records|length==58)' /tmp/abank.json >/dev/null && pass BANKS_ADMIN_58 || fail BANKS_ADMIN_58
+          curl -fsS -H "Authorization: Bearer $VIEWER_TOKEN" "$API_BASE/proveedores" > /tmp/vprov.json
+          curl -fsS -H "Authorization: Bearer $VIEWER_TOKEN" "$API_BASE/bancos" > /tmp/vbank.json
+          jq -e '.ok==true and (.records|length==1) and .records[0].fields.RFC=="GCO1110249CA"' /tmp/vprov.json >/dev/null && pass VIEWER_PROVIDER_SCOPE || fail VIEWER_PROVIDER_SCOPE
+          if jq -e '.ok==true and (.records|length>=1) and ([.records[].fields.Proveedor[]?] | length>=1) and ([.records[].fields.Proveedor[]?] | all(.=="receagrJwC5xxEzS0"))' /tmp/vbank.json >/dev/null; then pass VIEWER_BANK_SCOPE; else fail VIEWER_BANK_SCOPE; fi
+          WBC=$(curl -sS -o /tmp/vwrite.json -w '%{http_code}' -X POST -H "Authorization: Bearer $VIEWER_TOKEN" -H 'Content-Type: application/json' --data '{"fields":{"Empresa":"RELEASE SHOULD NOT WRITE"}}' "$API_BASE/bancos")
+          [ "$WBC" = 403 ] && pass VIEWER_BANK_WRITE_BLOCKED || fail VIEWER_BANK_WRITE_BLOCKED "http_$WBC"
+
+          # Airtable bank master-data integrity
+          curl -fsS -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$BANKS_TABLE_ID?pageSize=100" > /tmp/banks-db.json
+          python3 - <<'PY' > /tmp/bank-metrics.json
+          import json,re,collections
+          rows=json.load(open('/tmp/banks-db.json')).get('records',[])
+          unlinked=missing=invalid=placeholder=0; valid=[]
+          owners={}
+          for r in rows:
+              f=r.get('fields',{})
+              links=f.get('Proveedor') or []
+              if not links: unlinked+=1
+              cl=str(f.get('CLABE','')).strip()
+              if not cl: missing+=1
+              elif not re.fullmatch(r'\d{18}',cl): invalid+=1
+              else:
+                  valid.append(cl); owners.setdefault(cl,[]).append((f.get('Empresa') or '',f.get('Banco') or ''))
+              if str(f.get('Cuenta','')).strip().upper() in ('CTA','CUENTA','N/A','NA','-'): placeholder+=1
+          counts=collections.Counter(valid)
+          dup=[k for k,v in counts.items() if v>1]
+          cross=sum(1 for k in dup if len(set(x[0] for x in owners[k]))>1)
+          print(json.dumps({'rows':len(rows),'unlinked':unlinked,'missing':missing,'invalid':invalid,'placeholder':placeholder,'dup_groups':len(dup),'cross_entity_dup_groups':cross}))
+          PY
+          jq -e '.rows==58' /tmp/bank-metrics.json >/dev/null && pass BANK_MASTER_COUNT || fail BANK_MASTER_COUNT
+          jq -e '.unlinked==0' /tmp/bank-metrics.json >/dev/null && pass BANK_PROVIDER_LINKS || fail BANK_PROVIDER_LINKS
+          M=$(jq -r '.missing' /tmp/bank-metrics.json); I=$(jq -r '.invalid' /tmp/bank-metrics.json); P=$(jq -r '.placeholder' /tmp/bank-metrics.json); D=$(jq -r '.dup_groups' /tmp/bank-metrics.json); X=$(jq -r '.cross_entity_dup_groups' /tmp/bank-metrics.json)
+          [ "$M" = 0 ] && pass BANK_CLABE_COMPLETENESS || warn BANK_CLABE_COMPLETENESS "missing_$M"
+          [ "$I" = 0 ] && pass BANK_CLABE_FORMAT || warn BANK_CLABE_FORMAT "invalid_$I"
+          [ "$P" = 0 ] && pass BANK_ACCOUNT_COMPLETENESS || warn BANK_ACCOUNT_COMPLETENESS "placeholder_$P"
+          [ "$D" = 0 ] && pass BANK_DUPLICATE_CLABE || warn BANK_DUPLICATE_CLABE "groups_$D"
+          [ "$X" = 0 ] && pass BANK_CROSS_ENTITY_CLABE || warn BANK_CROSS_ENTITY_CLABE "groups_$X"
+
+          # Cotizador / FX
+          curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" "$API_BASE/divisas/current" > /tmp/rate.json
+          if jq -e '.ok==true and (.data.buy|numbers) and (.data.sell|numbers) and (.data.average|numbers) and .data.buy>0 and .data.sell>0' /tmp/rate.json >/dev/null; then pass COTIZADOR_RATE_SOURCE; else fail COTIZADOR_RATE_SOURCE; fi
+          AMT=1000
+          SELL=$(jq -r '.data.sell' /tmp/rate.json)
+          EXPECT=$(python3 - <<PY
+          from decimal import Decimal,ROUND_HALF_UP
+          print((Decimal('$AMT')*Decimal('$SELL')).quantize(Decimal('0.01'),rounding=ROUND_HALF_UP))
+          PY
+          )
+          QCODE=$(curl -sS -o /tmp/quote.json -w '%{http_code}' -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data "{\"amount\":$AMT,\"from\":\"USD\",\"to\":\"MXN\",\"rateType\":\"sell\",\"rate\":$SELL,\"total\":$EXPECT,\"clientName\":\"Release QA\"}" "$API_BASE/divisas/quotes")
+          QUOTE_ID=$(jq -r '.record.id // .id // empty' /tmp/quote.json)
+          if [[ "$QCODE" =~ ^20[01]$ ]] && [ -n "$QUOTE_ID" ]; then pass COTIZADOR_CREATE; else fail COTIZADOR_CREATE "http_$QCODE"; fi
+          ACTUAL=$(jq -r '.record.fields.Total // .fields.Total // .total // empty' /tmp/quote.json)
+          python3 - <<PY >/dev/null 2>&1 && pass COTIZADOR_MATH || fail COTIZADOR_MATH
+          from decimal import Decimal
+          a=Decimal(str('$ACTUAL')); e=Decimal(str('$EXPECT'))
+          assert abs(a-e) <= Decimal('0.01')
+          PY
+          curl -fsS -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$QUOTES_TABLE_ID/$QUOTE_ID" > /tmp/qdb.json
+          jq -e '.id != null' /tmp/qdb.json >/dev/null && pass COTIZADOR_PERSISTENCE || fail COTIZADOR_PERSISTENCE
+          BADAMT=$(curl -sS -o /tmp/badq.json -w '%{http_code}' -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data '{"amount":0,"from":"USD","to":"MXN","rateType":"sell"}' "$API_BASE/divisas/quotes")
+          [[ "$BADAMT" = 400 || "$BADAMT" = 422 ]] && pass COTIZADOR_INVALID_AMOUNT_GUARD || fail COTIZADOR_INVALID_AMOUNT_GUARD "http_$BADAMT"
+
+          # Laboral baseline + dismissal regression
+          curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" "$API_BASE/laboral/parameters" > /tmp/lp.json
+          jq -e '.ok==true' /tmp/lp.json >/dev/null && pass LABORAL_PARAMETERS || fail LABORAL_PARAMETERS
+          LVC=$(curl -sS -o /tmp/lv.json -w '%{http_code}' -H "Authorization: Bearer $VIEWER_TOKEN" "$API_BASE/laboral/parameters")
+          [ "$LVC" = 403 ] && pass LABORAL_VIEWER_BLOCKED || fail LABORAL_VIEWER_BLOCKED "http_$LVC"
+          curl -fsS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data '{"monthlySalary":30000,"startDate":"2024-01-01","endDate":"2026-08-21","scenario":"voluntary_resignation","pendingSalaryDays":5}' "$API_BASE/laboral/calculate" > /tmp/lab.json
+          jq -e '.ok==true and (.result.total|numbers) and .result.total>0' /tmp/lab.json >/dev/null && pass LABORAL_BASE_MATH || fail LABORAL_BASE_MATH
+          curl -fsS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data '{"monthlySalary":30000,"startDate":"2024-01-01","endDate":"2026-08-21","scenario":"unjustified_dismissal","pendingSalaryDays":0,"includeTwentyDaysPerYear":false}' "$API_BASE/laboral/dismissal" > /tmp/dis.json
+          jq -e '.ok==true and (.result.total|numbers) and .result.total>0' /tmp/dis.json >/dev/null && pass LABORAL_DISMISSAL_REGRESSION || fail LABORAL_DISMISSAL_REGRESSION
+
+          # IMSS complete matrix
+          imss(){ name="$1"; body="$2"; expr="$3"; code=$(curl -sS -o /tmp/imss.json -w '%{http_code}' -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data "$body" "$API_BASE/laboral/imss-cost"); if [ "$code" = 200 ] && jq -e "$expr" /tmp/imss.json >/dev/null; then pass "$name"; else fail "$name" "http_$code"; fi; }
+          imss IMSS_NORMAL_MATH '{"monthlySalary":30000,"region":"general","serviceYear":1,"vacationDays":12,"aguinaldoDays":15,"vacationPremiumPct":25,"daysCotized":30.4,"riskClass":"I"}' '.ok==true and .result.salary.sbcDaily==1049.32 and .result.calculations.employerImssMonthly==5604.14 and .result.calculations.workerQuotaWithheldMonthly==842.41 and .result.calculations.infonavitMonthly==1594.96 and .result.calculations.employerCostMonthly==37199.09'
+          imss IMSS_MINIMUM_WAGE_ART36 '{"monthlySalary":9000,"region":"general","serviceYear":1,"vacationDays":12,"aguinaldoDays":15,"vacationPremiumPct":25,"daysCotized":30.4,"riskClass":"I"}' '.ok==true and (.result.salary.sbcDaily|numbers) and .result.salary.sbcDaily>0'
+          imss IMSS_RISK_CLASS_I '{"monthlySalary":30000,"region":"general","serviceYear":1,"vacationDays":12,"aguinaldoDays":15,"vacationPremiumPct":25,"daysCotized":30.4,"riskClass":"I"}' '.ok==true and .result.inputs.riskClass=="I"'
+          imss IMSS_RISK_CLASS_V '{"monthlySalary":30000,"region":"general","serviceYear":1,"vacationDays":12,"aguinaldoDays":15,"vacationPremiumPct":25,"daysCotized":30.4,"riskClass":"V"}' '.ok==true and .result.inputs.riskClass=="V"'
+          imss IMSS_CUSTOM_RISK_PREMIUM '{"monthlySalary":30000,"region":"general","serviceYear":1,"vacationDays":12,"aguinaldoDays":15,"vacationPremiumPct":25,"daysCotized":30.4,"riskClass":"I","riskPremiumPct":2.5}' '.ok==true and .result.inputs.riskPremiumPct==2.5'
+          imss IMSS_25_UMA_CAP '{"monthlySalary":1000000,"region":"general","serviceYear":1,"vacationDays":12,"aguinaldoDays":15,"vacationPremiumPct":25,"daysCotized":30.4,"riskClass":"I"}' '.ok==true and (.result.salary.sbcDaily|numbers) and (.result.salary.sbcDaily<=.result.parameters.umaDaily*25+0.01)'
+          imss IMSS_SUPERIOR_BENEFITS '{"monthlySalary":30000,"region":"general","serviceYear":1,"vacationDays":30,"aguinaldoDays":30,"vacationPremiumPct":50,"daysCotized":30.4,"riskClass":"I"}' '.ok==true and .result.salary.integrationFactor>1.0493'
+          imss IMSS_KNOWN_SBC_OVERRIDE '{"monthlySalary":30000,"region":"general","serviceYear":1,"vacationDays":12,"aguinaldoDays":15,"vacationPremiumPct":25,"daysCotized":30.4,"riskClass":"I","knownSbcDaily":1200}' '.ok==true and .result.salary.sbcDaily==1200'
+          RC=$(curl -sS -o /tmp/badrisk.json -w '%{http_code}' -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data '{"monthlySalary":30000,"region":"general","serviceYear":1,"vacationDays":12,"aguinaldoDays":15,"vacationPremiumPct":25,"daysCotized":30.4,"riskClass":"VI"}' "$API_BASE/laboral/imss-cost")
+          [[ "$RC" = 400 || "$RC" = 422 ]] && pass IMSS_RISK_CLASS_GUARD || fail IMSS_RISK_CLASS_GUARD "http_$RC"
+          RPC=$(curl -sS -o /tmp/badrp.json -w '%{http_code}' -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data '{"monthlySalary":30000,"region":"general","serviceYear":1,"vacationDays":12,"aguinaldoDays":15,"vacationPremiumPct":25,"daysCotized":30.4,"riskClass":"I","riskPremiumPct":150}' "$API_BASE/laboral/imss-cost")
+          [[ "$RPC" = 400 || "$RPC" = 422 ]] && pass IMSS_RISK_RANGE_GUARD || fail IMSS_RISK_RANGE_GUARD "http_$RPC"
+          IVC=$(curl -sS -o /tmp/vimss.json -w '%{http_code}' -X POST -H "Authorization: Bearer $VIEWER_TOKEN" -H 'Content-Type: application/json' --data '{"monthlySalary":30000,"region":"general","serviceYear":1,"vacationDays":12,"aguinaldoDays":15,"vacationPremiumPct":25,"daysCotized":30.4,"riskClass":"I"}' "$API_BASE/laboral/imss-cost")
+          [ "$IVC" = 403 ] && pass IMSS_VIEWER_BLOCKED || fail IMSS_VIEWER_BLOCKED "http_$IVC"
+
+          echo "API_FAILS=$FAILS" >> "$RESULT_FILE"
+          echo "DATA_WARNINGS=$WARNS" >> "$RESULT_FILE"
+          if [ "$FAILS" -eq 0 ]; then echo 'API_AND_DATA_AUDIT=PASS' >> "$RESULT_FILE"; else echo 'API_AND_DATA_AUDIT=FAIL' >> "$RESULT_FILE"; exit 1; fi
+
+      - name: Browser desktop/mobile end-to-end audit
+        id: browser
+        if: always()
+        shell: bash
+        env:
+          # Read disposable credentials created by the prior step from Airtable is unsafe/impractical;
+          # create a second disposable pair dedicated to browser QA.
+          USERS_TABLE_ID: tbleeFejdXclP3md1
+        run: |
+          set -Eeuo pipefail
+          : "${AIRTABLE_TOKEN:?AIRTABLE_TOKEN missing}"
+          : "${AIRTABLE_BASE_ID:?AIRTABLE_BASE_ID missing}"
+          SUFFIX="$(date +%s)-$RANDOM"; AU="browser-admin-$SUFFIX"; AP="$(openssl rand -hex 18)"; VU="browser-viewer-$SUFFIX"; VP="$(openssl rand -hex 18)"
+          jq -n --arg au "$AU" --arg ap "$AP" --arg vu "$VU" --arg vp "$VP" '{records:[
+            {fields:{"Nombre completo":"Browser Temporary Admin","Usuario":$au,"Usuario (login)":$au,"Contraseña":$ap,"Rol":"admin"}},
+            {fields:{"Nombre completo":"Browser Temporary Viewer","Usuario":$vu,"Usuario (login)":$vu,"Contraseña":$vp,"Rol":"viewer","Empresas permitidas":"GCO1110249CA"}}
+          ]}' > /tmp/busers.json
+          curl -fsS -X POST -H "Authorization: Bearer $AIRTABLE_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/busers.json "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID" > /tmp/bcreated.json
+          AID=$(jq -r '.records[0].id' /tmp/bcreated.json); VID=$(jq -r '.records[1].id' /tmp/bcreated.json)
+          cleanup(){ set +e; for id in "$AID" "$VID"; do curl -sS -X DELETE -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$id" >/dev/null; done; }
+          trap cleanup EXIT
+          echo 'BROWSER_TEMP_USERS_CREATED=PASS' >> "$RESULT_FILE"
+
+          cat > /tmp/release-ui.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import fs from 'node:fs';
+          const append=s=>fs.appendFileSync(process.env.RESULT_FILE,s+'\n');
+          const browser=await chromium.launch({headless:true});
+          async function login(page,u,p){
+            await page.goto(`${process.env.SITE_URL}?release-ui=${Date.now()}-${Math.random()}`,{waitUntil:'domcontentloaded',timeout:60000});
+            await page.locator('#loginUser').waitFor({state:'visible',timeout:30000});
+            await page.locator('#loginUser').fill(u); await page.locator('#loginPass').fill(p); await page.locator('#btnLogin').click();
+            await page.waitForFunction(()=>document.body.classList.contains('logged-in'),null,{timeout:30000});
+            await page.waitForFunction(()=>document.body.classList.contains('is-admin')||document.body.classList.contains('is-viewer'),null,{timeout:30000});
+            await page.locator('#searchInput').waitFor({state:'visible',timeout:30000});
+          }
+          try{
+            const actx=await browser.newContext({viewport:{width:1440,height:1100}}),p=await actx.newPage();
+            await login(p,process.env.AU,process.env.AP);
+            await p.locator('#adminAddBtn').waitFor({state:'visible',timeout:15000});
+            append('UI_ADMIN_LOGIN_AND_CONTROLS=PASS');
+            await p.locator('button[onclick="openAdminPanel()"]').click();
+            await p.locator('#adminOverlay').waitFor({state:'visible',timeout:10000});
+            await p.getByRole('button',{name:'Usuarios',exact:true}).click();
+            await p.waitForFunction(()=>document.querySelectorAll('#usersList .user-row').length>=10,null,{timeout:20000});
+            const ut=await p.locator('#usersList').innerText(); if(/Password Hash|Contraseña|TOTP/i.test(ut)) throw new Error('UI usuarios expone sensible');
+            append('UI_USERS_ADMIN=PASS');
+            await p.locator('#adminOverlay button[onclick*="closeOverlay"]').first().click();
+
+            await p.locator('#hxDivisasBtn').waitFor({state:'visible',timeout:20000}); await p.locator('#hxDivisasBtn').click();
+            await p.locator('#hxfxCreateQuote').waitFor({state:'visible',timeout:20000});
+            await p.waitForFunction(()=>{const t=document.querySelector('#hxfxAverage')?.textContent||'';return t&&t!=='—';},null,{timeout:25000});
+            const calc=await p.locator('#hxfxCalcResult').innerText(); if(!calc||calc==='—') throw new Error('Cotizador UI sin cálculo');
+            append('UI_COTIZADOR=PASS');
+
+            await p.locator('#hxLaboralBtn').waitFor({state:'visible',timeout:20000}); await p.locator('#hxLaboralBtn').click();
+            await p.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:20000}); await p.locator('#hxliMonthly').fill('30000'); await p.locator('#hxliServiceYear').fill('1'); await p.locator('#hxliVacationDays').fill('12'); await p.locator('#hxliCalculate').click();
+            await p.waitForFunction(()=>/Costo patronal mensual estimado/i.test(document.querySelector('#hxliResult')?.innerText||''),null,{timeout:25000});
+            const it=await p.locator('#hxliResult').innerText();
+            for(const m of ['SBC diario','INFONAVIT','Costo anual estimado','Fundamento del cálculo','NO ES DETERMINACIÓN OFICIAL']) if(!it.includes(m)) throw new Error(`IMSS UI sin ${m}`);
+            append('UI_IMSS_COMPLETE=PASS');
+            await actx.close();
+
+            for(const [label,viewport] of [['VIEWER_DESKTOP',{width:1440,height:1000}],['VIEWER_MOBILE',{width:390,height:844}]]){
+              const c=await browser.newContext({viewport}),v=await c.newPage(); await login(v,process.env.VU,process.env.VP);
+              await v.waitForFunction(()=>Number(document.querySelector('#statTotal')?.textContent||'-1')===1,null,{timeout:30000});
+              const cards=await v.locator('#cardsGrid .pcard').count(); if(cards!==1) throw new Error(`${label} cards=${cards}`);
+              const tx=await v.locator('#cardsGrid').innerText(); if(!/GHR Constructor/i.test(tx)) throw new Error(`${label} proveedor`);
+              if(await v.locator('#adminSideSection').isVisible().catch(()=>false)) throw new Error(`${label} admin visible`);
+              if(await v.locator('#hxLaboralBtn').isVisible().catch(()=>false)) throw new Error(`${label} laboral visible`);
+              if(viewport.width<600){const ov=await v.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth); if(ov>8) throw new Error(`${label} overflow=${ov}`);}
+              append(`${label}_PERMISSIONS_AND_LAYOUT=PASS`); await c.close();
+            }
+            append('BROWSER_E2E=PASS');
+          }catch(e){append(`BROWSER_E2E=FAIL:${String(e.message||e).replace(/\s+/g,' ').slice(0,300)}`);throw e;}finally{await browser.close();}
+          JS
+          AU="$AU" AP="$AP" VU="$VU" VP="$VP" node /tmp/release-ui.mjs
+
+      - name: Verify disposable cleanup and finalize verdict
+        if: always()
+        shell: bash
+        run: |
+          # The traps in prior steps remove temporary records. Give Airtable a moment, then verify by prefix.
+          sleep 3
+          curl -fsS -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID?pageSize=100" > /tmp/final-users.json
+          LEFT=$(jq '[.records[].fields.Usuario // "" | select(startswith("release-admin-") or startswith("release-viewer-") or startswith("browser-admin-") or startswith("browser-viewer-"))] | length' /tmp/final-users.json)
+          [ "$LEFT" = 0 ] && echo 'TEMP_USERS_CLEANUP=PASS' >> "$RESULT_FILE" || echo "TEMP_USERS_CLEANUP=FAIL:left_$LEFT" >> "$RESULT_FILE"
+          API_OK=$(grep -c '^API_AND_DATA_AUDIT=PASS$' "$RESULT_FILE" || true)
+          BROWSER_OK=$(grep -c '^BROWSER_E2E=PASS$' "$RESULT_FILE" || true)
+          CLEAN_OK=$(grep -c '^TEMP_USERS_CLEANUP=PASS$' "$RESULT_FILE" || true)
+          WARNS=$(grep -c '=WARNING' "$RESULT_FILE" || true)
+          if [ "$API_OK" = 1 ] && [ "$BROWSER_OK" = 1 ] && [ "$CLEAN_OK" = 1 ]; then
+            if [ "$WARNS" -gt 0 ]; then echo 'RELEASE_VERDICT=PASS_WITH_MASTER_DATA_WARNINGS' >> "$RESULT_FILE"; else echo 'RELEASE_VERDICT=PASS' >> "$RESULT_FILE"; fi
+          else
+            echo 'RELEASE_VERDICT=FAIL' >> "$RESULT_FILE"
+          fi
+          echo "TOTAL_WARNINGS=$WARNS" >> "$RESULT_FILE"
+          cat "$RESULT_FILE"
+
+      - name: Persist release readiness result
+        if: always()
+        shell: bash
+        run: |
+          test -f "$RESULT_FILE" || printf 'CHECKED_AT_UTC=%s\nRELEASE_VERDICT=FAIL\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$RESULT_FILE"
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add "$RESULT_FILE"
+          git commit -m "Update CATALOGO-HX release readiness result" || exit 0
+          git pull --rebase || true
+          git push
+
+      - name: Fail workflow if release verdict failed
+        if: always()
+        run: |
+          grep -q '^RELEASE_VERDICT=FAIL$' "$RESULT_FILE" && exit 1 || exit 0
