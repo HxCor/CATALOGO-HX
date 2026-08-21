@@ -1,0 +1,206 @@
+name: CATALOGO-HX QA UI Supplement
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/catalogo-full-qa-ui-supplement.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  qa-ui:
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: https://hxcor.github.io/CATALOGO-HX/
+      API_BASE: https://catalogo-hx-backend.armando-avila.workers.dev
+      AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+      AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+      USERS_TABLE_ID: tbleeFejdXclP3md1
+      RESULT_FILE: catalogo-full-qa-ui-result.txt
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Create disposable users
+        id: users
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : > "$RESULT_FILE"
+          echo "CHECKED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT_FILE"
+          : "${AIRTABLE_TOKEN:?AIRTABLE_TOKEN missing}"
+          : "${AIRTABLE_BASE_ID:?AIRTABLE_BASE_ID missing}"
+          SUFFIX="$(date +%s)-$RANDOM"
+          AU="qa-ui-admin-$SUFFIX"; AP="$(openssl rand -hex 18)"
+          VU="qa-ui-viewer-$SUFFIX"; VP="$(openssl rand -hex 18)"
+          jq -n --arg au "$AU" --arg ap "$AP" --arg vu "$VU" --arg vp "$VP" '{records:[
+            {fields:{"Nombre completo":"QA UI Temporary Admin","Usuario":$au,"Usuario (login)":$au,"Contraseña":$ap,"Rol":"admin"}},
+            {fields:{"Nombre completo":"QA UI Temporary Viewer","Usuario":$vu,"Usuario (login)":$vu,"Contraseña":$vp,"Rol":"viewer","Empresas permitidas":"GCO1110249CA"}}
+          ]}' > /tmp/users.json
+          curl -fsS -X POST -H "Authorization: Bearer $AIRTABLE_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/users.json \
+            "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID" > /tmp/created.json
+          AID=$(jq -r '.records[0].id // empty' /tmp/created.json); VID=$(jq -r '.records[1].id // empty' /tmp/created.json)
+          test -n "$AID" && test -n "$VID"
+          { echo "au=$AU"; echo "ap=$AP"; echo "vu=$VU"; echo "vp=$VP"; echo "aid=$AID"; echo "vid=$VID"; } >> "$GITHUB_OUTPUT"
+          echo "TEMP_USERS=PASS" >> "$RESULT_FILE"
+
+      - name: API permission supplement
+        id: api
+        env:
+          ADMIN_USER: ${{ steps.users.outputs.au }}
+          ADMIN_PASS: ${{ steps.users.outputs.ap }}
+          VIEWER_USER: ${{ steps.users.outputs.vu }}
+          VIEWER_PASS: ${{ steps.users.outputs.vp }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ADMIN_TOKEN=$(curl -fsS -X POST -H 'Content-Type: application/json' --data "{\"usuario\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}" "$API_BASE/login" | jq -r '.token // empty')
+          VIEWER_TOKEN=$(curl -fsS -X POST -H 'Content-Type: application/json' --data "{\"usuario\":\"$VIEWER_USER\",\"password\":\"$VIEWER_PASS\"}" "$API_BASE/login" | jq -r '.token // empty')
+          test -n "$ADMIN_TOKEN" && test -n "$VIEWER_TOKEN"
+          echo "AUTH_CONNECTION=PASS" >> "$RESULT_FILE"
+
+          curl -fsS -H "Authorization: Bearer $VIEWER_TOKEN" "$API_BASE/proveedores" > /tmp/vp.json
+          jq -e '.ok == true and (.records|length == 1) and .records[0].fields.RFC == "GCO1110249CA"' /tmp/vp.json >/dev/null
+          echo "VIEWER_PROVIDER_SCOPE=PASS" >> "$RESULT_FILE"
+
+          curl -fsS -H "Authorization: Bearer $VIEWER_TOKEN" "$API_BASE/bancos" > /tmp/vb.json
+          jq -e '.ok == true and (.records|length >= 1) and ([.records[].fields.Proveedor[]?] | length >= 1) and ([.records[].fields.Proveedor[]?] | all(. == "receagrJwC5xxEzS0"))' /tmp/vb.json >/dev/null
+          echo "VIEWER_BANK_SCOPE=PASS" >> "$RESULT_FILE"
+
+          CODE=$(curl -sS -o /tmp/vu.json -w '%{http_code}' -H "Authorization: Bearer $VIEWER_TOKEN" "$API_BASE/usuarios")
+          test "$CODE" = "403"
+          echo "VIEWER_USERS_BLOCKED=PASS" >> "$RESULT_FILE"
+
+          CODE=$(curl -sS -o /tmp/vi.json -w '%{http_code}' -X POST -H "Authorization: Bearer $VIEWER_TOKEN" -H 'Content-Type: application/json' \
+            --data '{"monthlySalary":30000,"region":"general","serviceYear":1,"vacationDays":12,"aguinaldoDays":15,"vacationPremiumPct":25,"daysCotized":30.4,"riskClass":"I"}' "$API_BASE/laboral/imss-cost")
+          test "$CODE" = "403"
+          echo "VIEWER_IMSS_BLOCKED=PASS" >> "$RESULT_FILE"
+
+          curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" "$API_BASE/usuarios" > /tmp/au.json
+          jq -e '.ok == true and (.records|length >= 10)' /tmp/au.json >/dev/null
+          RAW=$(cat /tmp/au.json)
+          if printf '%s' "$RAW" | grep -Eiq 'Password Hash|Contraseña|TOTP Secret'; then exit 1; fi
+          echo "ADMIN_USERS_SANITIZED=PASS" >> "$RESULT_FILE"
+
+          curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" "$API_BASE/bancos" > /tmp/ab.json
+          jq -e '.ok == true and (.records|length >= 50)' /tmp/ab.json >/dev/null
+          echo "ADMIN_ACCOUNTS_CONNECTION=PASS" >> "$RESULT_FILE"
+
+          curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" "$API_BASE/divisas/current" > /tmp/rate.json
+          jq -e '.ok == true and (.data.buy|numbers) and (.data.sell|numbers) and (.data.average|numbers)' /tmp/rate.json >/dev/null
+          echo "COTIZADOR_CONNECTION=PASS" >> "$RESULT_FILE"
+
+          curl -fsS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+            --data '{"monthlySalary":30000,"region":"general","serviceYear":1,"vacationDays":12,"aguinaldoDays":15,"vacationPremiumPct":25,"daysCotized":30.4,"riskClass":"I"}' "$API_BASE/laboral/imss-cost" > /tmp/imss.json
+          jq -e '.ok == true and .result.salary.sbcDaily == 1049.32 and .result.calculations.employerImssMonthly == 5604.14 and .result.calculations.workerQuotaWithheldMonthly == 842.41 and .result.calculations.infonavitMonthly == 1594.96 and .result.calculations.employerCostMonthly == 37199.09' /tmp/imss.json >/dev/null
+          echo "IMSS_ENGINE_CONNECTION_AND_MATH=PASS" >> "$RESULT_FILE"
+
+      - name: Browser UI suite
+        id: browser
+        env:
+          ADMIN_USER: ${{ steps.users.outputs.au }}
+          ADMIN_PASS: ${{ steps.users.outputs.ap }}
+          VIEWER_USER: ${{ steps.users.outputs.vu }}
+          VIEWER_PASS: ${{ steps.users.outputs.vp }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat > fullqa-ui-supplement.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import fs from 'node:fs';
+          const append=s=>fs.appendFileSync(process.env.RESULT_FILE,s+'\n');
+          const browser=await chromium.launch({headless:true});
+          async function login(page,u,p){
+            await page.goto(`${process.env.SITE_URL}?qa-ui=${Date.now()}-${Math.random()}`,{waitUntil:'domcontentloaded',timeout:60000});
+            await page.locator('#loginUser').waitFor({state:'visible',timeout:30000});
+            await page.locator('#loginUser').fill(u); await page.locator('#loginPass').fill(p); await page.locator('#btnLogin').click();
+            await page.waitForFunction(()=>document.body.classList.contains('logged-in'),null,{timeout:30000});
+            await page.locator('#searchInput').waitFor({state:'visible',timeout:30000});
+          }
+          try{
+            const admin=await browser.newContext({viewport:{width:1440,height:1100}}),p=await admin.newPage();
+            await login(p,process.env.ADMIN_USER,process.env.ADMIN_PASS);
+            await p.locator('#adminAddBtn').waitFor({state:'visible',timeout:15000});
+            await p.locator('button[onclick="openAdminPanel()"]').click();
+            await p.locator('#adminOverlay').waitFor({state:'visible',timeout:10000});
+            await p.getByRole('button',{name:'Usuarios',exact:true}).click();
+            await p.waitForFunction(()=>document.querySelectorAll('#usersList .user-row').length>=10,null,{timeout:20000});
+            const usersText=await p.locator('#usersList').innerText();
+            if(/Password Hash|Contraseña|TOTP/i.test(usersText)) throw new Error('UI usuarios expone datos sensibles');
+            append('UI_USERS_ADMIN=PASS');
+            await p.locator('#adminOverlay button[onclick*="closeOverlay"]').first().click();
+
+            await p.locator('#hxDivisasBtn').waitFor({state:'visible',timeout:20000});
+            await p.locator('#hxDivisasBtn').click();
+            await p.locator('#hxfxCreateQuote').waitFor({state:'visible',timeout:20000});
+            await p.waitForFunction(()=>{const t=document.querySelector('#hxfxAverage')?.textContent||''; return t && t!=='—';},null,{timeout:25000});
+            const calc=await p.locator('#hxfxCalcResult').innerText();
+            if(!calc || calc==='—') throw new Error('Cotizador sin cálculo visible');
+            append('UI_COTIZADOR=PASS');
+
+            await p.locator('#hxLaboralBtn').waitFor({state:'visible',timeout:20000});
+            await p.locator('#hxLaboralBtn').click();
+            await p.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:20000});
+            await p.locator('#hxliMonthly').fill('30000');
+            await p.locator('#hxliServiceYear').fill('1');
+            await p.locator('#hxliVacationDays').fill('12');
+            await p.locator('#hxliCalculate').click();
+            await p.waitForFunction(()=>/Costo patronal mensual estimado/i.test(document.querySelector('#hxliResult')?.innerText||''),null,{timeout:25000});
+            const imss=await p.locator('#hxliResult').innerText();
+            for(const marker of ['SBC diario','INFONAVIT','Costo anual estimado','Fundamento del cálculo','NO ES DETERMINACIÓN OFICIAL']) if(!imss.includes(marker)) throw new Error(`IMSS UI sin ${marker}`);
+            append('UI_IMSS_COMPLETE=PASS');
+            await admin.close();
+
+            for(const [label,viewport] of [['VIEWER_DESKTOP',{width:1440,height:1000}],['VIEWER_MOBILE',{width:390,height:844}]]){
+              const ctx=await browser.newContext({viewport}),vp=await ctx.newPage();
+              await login(vp,process.env.VIEWER_USER,process.env.VIEWER_PASS);
+              await vp.waitForFunction(()=>Number(document.querySelector('#statTotal')?.textContent||'-1')===1,null,{timeout:30000});
+              const cards=await vp.locator('#cardsGrid .pcard').count();
+              if(cards!==1) throw new Error(`${label}: ${cards} cards`);
+              const text=await vp.locator('#cardsGrid').innerText();
+              if(!/GHR Constructor/i.test(text)) throw new Error(`${label}: proveedor autorizado no visible`);
+              if(await vp.locator('#adminSideSection').isVisible().catch(()=>false)) throw new Error(`${label}: admin visible`);
+              if(await vp.locator('#hxLaboralBtn').isVisible().catch(()=>false)) throw new Error(`${label}: Laboral visible`);
+              if(viewport.width<600){const overflow=await vp.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth); if(overflow>8) throw new Error(`${label}: overflow ${overflow}`);}
+              append(`${label}_ACCOUNTS_AND_PERMISSIONS=PASS`);
+              await ctx.close();
+            }
+            append('UI_BROWSER_SUITE=PASS');
+            append('OVERALL=PASS');
+          }catch(e){append(`ERROR=${String(e.message||e).replace(/\s+/g,' ').slice(0,400)}`);append('OVERALL=FAIL');throw e;}finally{await browser.close();}
+          JS
+          node fullqa-ui-supplement.mjs
+          cat "$RESULT_FILE"
+
+      - name: Remove disposable users
+        if: always()
+        env:
+          AID: ${{ steps.users.outputs.aid }}
+          VID: ${{ steps.users.outputs.vid }}
+        shell: bash
+        run: |
+          set +e
+          for id in "$AID" "$VID"; do [ -z "$id" ] || curl -sS -X DELETE -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$id" >/dev/null 2>&1; done
+
+      - name: Persist result
+        if: always()
+        run: |
+          test -f "$RESULT_FILE" || printf 'CHECKED_AT_UTC=%s\nOVERALL=FAIL\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$RESULT_FILE"
+          git config user.name github-actions; git config user.email github-actions@github.com
+          git add "$RESULT_FILE"; git commit -m "Update CATALOGO-HX QA UI supplement result" || exit 0
+          git pull --rebase || true; git push
+
+      - name: Fail if validation failed
+        if: steps.api.outcome != 'success' || steps.browser.outcome != 'success'
+        run: exit 1
