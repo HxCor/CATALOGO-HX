@@ -102,6 +102,7 @@ jobs:
             await page.locator('#loginPass').fill(pass);
             await page.locator('#btnLogin').click();
             await page.waitForFunction(() => document.body.classList.contains('logged-in'), null, { timeout: 30000 });
+            await page.waitForFunction(() => document.body.classList.contains('is-admin') || document.body.classList.contains('is-viewer'), null, { timeout: 30000 });
             await page.locator('#searchInput').waitFor({ state: 'visible', timeout: 30000 });
           }
 
@@ -111,12 +112,12 @@ jobs:
           }
 
           try {
-            // ADMIN: lista de usuarios, roles y saneamiento visual/backend.
             {
               const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
               const page = await ctx.newPage();
               await login(page, process.env.ADMIN_USER, process.env.ADMIN_PASS);
 
+              await page.locator('#adminAddBtn').waitFor({ state: 'visible', timeout: 15000 });
               if (!(await page.locator('#adminAddBtn').isVisible())) throw new Error('Admin: controles de administración no visibles');
               await page.locator('button[onclick="openAdminPanel()"]').click();
               await page.locator('#adminOverlay').waitFor({ state: 'visible', timeout: 10000 });
@@ -147,7 +148,6 @@ jobs:
               await ctx.close();
             }
 
-            // VIEWER: solo una empresa autorizada y sin administración.
             for (const [label, viewport] of [
               ['VIEWER_DESKTOP', { width: 1440, height: 1000 }],
               ['VIEWER_MOBILE', { width: 390, height: 844 }],
