@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/final-certification-v3.yml'
       - 'certification-trigger-v3.txt'
+  issues:
+    types: [opened]
   workflow_dispatch:
 
 permissions:
