@@ -1,4 +1,8 @@
-CHECKED_AT_UTC=2026-08-21T23:04:11Z
+CHECKED_AT_UTC=2026-08-21T23:06:47Z
 TEMP_USERS_CREATED=PASS
+ADMIN_LOGIN_UI=PASS
+ADMIN_USERS_UI=PASS
+ADMIN_OVERLAY_CLOSE=PASS
+DIVISAS_POINTER_HIT=PASS:{"targetTag":"BUTTON","targetId":"hxDivisasBtn","hitTag":"BUTTON","hitId":"hxDivisasBtn","hitClass":"side-btn","same":true,"display":"flex","visibility":"visible","pointerEvents":"auto"}
 TEMP_USERS_CLEANUP=PASS
-REAL_USERS_FINAL_COUNT_8=PASS
+REAL_USERS_FINAL_COUNT_8=FAIL:count_27
