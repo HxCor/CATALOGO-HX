@@ -1,0 +1,143 @@
+name: CATALOGO-HX Module Isolation Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/module-isolation-smoke.yml'
+      - 'index.html'
+      - 'divisas-hx-pro-fix.js'
+      - 'laboral-navigation-fix.js'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: https://hxcor.github.io/CATALOGO-HX/
+      AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+      AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+      USERS_TABLE_ID: tbleeFejdXclP3md1
+      RESULT_FILE: module-isolation-smoke-result.txt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Create disposable admin
+        id: user
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : > "$RESULT_FILE"
+          echo "CHECKED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT_FILE"
+          U="module-isolation-$(date +%s)-$RANDOM"
+          P="$(openssl rand -hex 18)"
+          jq -n --arg u "$U" --arg p "$P" '{records:[{fields:{"Nombre completo":"Module Isolation Smoke","Usuario":$u,"Usuario (login)":$u,"Contraseña":$p,"Rol":"admin"}}]}' >/tmp/user.json
+          curl -fsS -X POST -H "Authorization: Bearer $AIRTABLE_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/user.json "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID" >/tmp/created.json
+          ID=$(jq -r '.records[0].id // empty' /tmp/created.json)
+          test -n "$ID"
+          { echo "u=$U"; echo "p=$P"; echo "id=$ID"; } >> "$GITHUB_OUTPUT"
+          echo 'TEMP_ADMIN_CREATED=PASS' >> "$RESULT_FILE"
+      - name: Test isolated modules
+        env:
+          U: ${{ steps.user.outputs.u }}
+          P: ${{ steps.user.outputs.p }}
+        shell: bash
+        run: |
+          cat > module-isolation-smoke.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import fs from 'node:fs';
+          const log=s=>fs.appendFileSync(process.env.RESULT_FILE,s+'\n');
+          const browser=await chromium.launch({headless:true});
+          const page=await browser.newPage({viewport:{width:1440,height:1000}});
+          try{
+            await page.goto(`${process.env.SITE_URL}?module-isolation=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});
+            await page.locator('#loginUser').waitFor({state:'visible',timeout:30000});
+            await page.locator('#loginUser').fill(process.env.U);
+            await page.locator('#loginPass').fill(process.env.P);
+            await page.locator('#btnLogin').click();
+            await page.waitForFunction(()=>document.body.classList.contains('is-admin'),null,{timeout:30000});
+            log('ADMIN_LOGIN=PASS');
+
+            await page.locator('#hxDivisasBtn').waitFor({state:'visible',timeout:30000});
+            await page.locator('#hxDivisasBtn').click();
+            await page.locator('#hxDivisasView').waitFor({state:'visible',timeout:20000});
+            await page.waitForFunction(()=>document.querySelector('#mainContent')?.classList.contains('hxfx-only'),null,{timeout:5000});
+            const divState=await page.evaluate(()=>({
+              cards:document.querySelectorAll('#cardsGrid .pcard').length,
+              cardsVisible:[...document.querySelectorAll('#cardsGrid .pcard')].filter(x=>getComputedStyle(x).display!=='none'&&x.getClientRects().length).length,
+              gridVisible:document.querySelector('#cardsGrid') ? getComputedStyle(document.querySelector('#cardsGrid')).display!=='none' : false,
+              divVisible:document.querySelector('#hxDivisasView')?.getClientRects().length>0
+            }));
+            if(!divState.divVisible || divState.cardsVisible!==0 || divState.gridVisible) throw new Error(`Divisas_not_isolated_${JSON.stringify(divState)}`);
+            log('COTIZADOR_ONLY_NO_COMPANIES=PASS');
+
+            await page.locator('#hxLaboralBtn').click();
+            await page.locator('#hxLaboralView').waitFor({state:'visible',timeout:20000});
+            await page.waitForFunction(()=>document.querySelector('#mainContent')?.classList.contains('hxlab-force'),null,{timeout:5000});
+            const labState=await page.evaluate(()=>({
+              cardsVisible:[...document.querySelectorAll('#cardsGrid .pcard')].filter(x=>getComputedStyle(x).display!=='none'&&x.getClientRects().length).length,
+              gridVisible:document.querySelector('#cardsGrid') ? getComputedStyle(document.querySelector('#cardsGrid')).display!=='none' : false,
+              labVisible:document.querySelector('#hxLaboralView')?.getClientRects().length>0,
+              fxMode:document.querySelector('#mainContent')?.classList.contains('hxfx-only')
+            }));
+            if(!labState.labVisible || labState.cardsVisible!==0 || labState.gridVisible || labState.fxMode) throw new Error(`Laboral_not_isolated_${JSON.stringify(labState)}`);
+            log('LABORAL_ONLY_NO_COMPANIES=PASS');
+
+            const imss=page.locator('.hxlab-status').filter({hasText:'IMSS / costo patronal'}).first();
+            await imss.waitFor({state:'visible',timeout:10000});
+            await imss.click();
+            await page.waitForFunction(()=>document.querySelector('#mainContent')?.classList.contains('hxlab-imss-only'),null,{timeout:5000});
+            await page.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:10000});
+            const imssState=await page.evaluate(()=>({
+              cardsVisible:[...document.querySelectorAll('#cardsGrid .pcard')].filter(x=>getComputedStyle(x).display!=='none'&&x.getClientRects().length).length,
+              panelVisible:document.querySelector('#hxlabImssPanel')?.getClientRects().length>0,
+              statusesVisible:[...document.querySelectorAll('#hxLaboralView > .hxlab-status-grid')].filter(x=>getComputedStyle(x).display!=='none'&&x.getClientRects().length).length,
+              back:!!document.querySelector('#hxliBackLaboral')
+            }));
+            if(!imssState.panelVisible || imssState.cardsVisible!==0 || imssState.statusesVisible!==0 || !imssState.back) throw new Error(`IMSS_not_isolated_${JSON.stringify(imssState)}`);
+            log('IMSS_ONLY_NO_COMPANIES=PASS');
+
+            const scripts=await page.evaluate(()=>({
+              divisas:[...document.scripts].some(s=>/divisas-hx-pro-fix\.js\?v=20260821-2/.test(s.src)),
+              laboral:[...document.scripts].some(s=>/laboral-navigation-fix\.js\?v=20260821-4/.test(s.src))
+            }));
+            if(!scripts.divisas||!scripts.laboral) throw new Error(`Cache_versions_${JSON.stringify(scripts)}`);
+            log('LIGHTWEIGHT_NAVIGATION_VERSION=PASS');
+            log('OVERALL=PASS');
+          }catch(e){log(`ERROR=${String(e.message||e).replace(/\s+/g,'_').slice(0,400)}`);log('OVERALL=FAIL');throw e;}
+          finally{await browser.close();}
+          JS
+          node module-isolation-smoke.mjs
+      - name: Cleanup disposable admin
+        if: always()
+        env:
+          ID: ${{ steps.user.outputs.id }}
+        shell: bash
+        run: |
+          set +e
+          [ -z "$ID" ] || curl -sS -X DELETE -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$ID" >/dev/null
+          echo 'TEMP_ADMIN_CLEANUP=PASS' >> "$RESULT_FILE"
+      - name: Persist result
+        if: always()
+        run: |
+          cat "$RESULT_FILE"
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add "$RESULT_FILE"
+          git commit -m "Update module isolation smoke result" || exit 0
+          git pull --rebase || true
+          git push
+      - name: Enforce result
+        if: always()
+        run: |
+          grep -q '^OVERALL=PASS$' "$RESULT_FILE" || exit 1
+          grep -q '^TEMP_ADMIN_CLEANUP=PASS$' "$RESULT_FILE" || exit 1
