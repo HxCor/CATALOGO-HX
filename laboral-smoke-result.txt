@@ -1,4 +1,4 @@
-CHECKED_AT_UTC=2026-08-22T00:05:39Z
+CHECKED_AT_UTC=2026-08-22T00:09:55Z
 TEMP_USERS=PASS
 FRONTEND_MODULES=PASS
 ADMIN_LOGIN=PASS
@@ -11,6 +11,11 @@ DISMISSAL_ART50_GUARD=PASS
 DISMISSAL_JUSTIFIED_GUARD=PASS
 DISMISSAL_VIEWER_RESTRICTION=PASS
 ADMIN_MENU=PASS
-UI_ERROR=locator.click: Timeout 30000ms exceeded. Call log: - waiting for locator('#hxLaboralBtn') - locator resolved to <button tabindex="0" type="button" class="side-btn" id="hxLaboralBtn" aria-hidden="false">…</button> - attempting click action - waiting for element to be visible, enabled and stable - element is visible, enabled and stable - scrolling into view if needed - done scrolling - performing click action 
-SMOKE_STEP_ERROR=line_107
-OVERALL=FAIL
+ADMIN_LABORAL_VIEW=PASS
+DISMISSAL_UI=PASS
+LEGAL_NOTICE=PASS
+ADMIN_CALCULATION_UI=PASS
+DISMISSAL_CALCULATION_UI=PASS
+VIEWER_UI_RESTRICTION=PASS
+ADMIN_UI=PASS
+OVERALL=PASS
