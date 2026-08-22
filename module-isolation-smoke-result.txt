@@ -1,6 +1,5 @@
-CHECKED_AT_UTC=2026-08-22T00:19:22Z
+CHECKED_AT_UTC=2026-08-22T00:20:47Z
 TEMP_ADMIN_CREATED=PASS
 ADMIN_LOGIN=PASS
-ERROR=locator.click:_Timeout_30000ms_exceeded._Call_log:_-_waiting_for_locator('#hxDivisasBtn')_-_locator_resolved_to_<button_type="button"_class="side-btn"_id="hxDivisasBtn">…</button>_-_attempting_click_action_-_waiting_for_element_to_be_visible,_enabled_and_stable_-_element_is_visible,_enabled_and_stable_-_scrolling_into_view_if_needed_-_done_scrolling_-_performing_click_action_
-OVERALL=FAIL
+COTIZADOR_POINTER=PASS:{"same":true,"hitTag":"BUTTON","hitId":"hxDivisasBtn","hitClass":"side-btn","targetZ":"60","hitZ":"60"}
 TEMP_ADMIN_CLEANUP=PASS
