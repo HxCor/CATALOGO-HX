@@ -11,8 +11,18 @@
       #hxLaboralBtn,#hxDivisasBtn{position:relative;pointer-events:auto!important}
       #mainContent.hxlab-force > :not(#hxLaboralView){display:none!important}
       #mainContent.hxlab-force #hxLaboralView{display:block!important;visibility:visible!important;opacity:1!important}
+      #mainContent.hxlab-force #cardsGrid,
+      #mainContent.hxlab-force .cards-grid,
+      #mainContent.hxlab-force .stats-row,
+      #mainContent.hxlab-force .page-header{display:none!important}
+      #mainContent.hxlab-imss-only > :not(#hxLaboralView){display:none!important}
+      #mainContent.hxlab-imss-only #hxLaboralView{display:block!important;visibility:visible!important;opacity:1!important}
+      #mainContent.hxlab-imss-only #hxLaboralView > :not(#hxlabImssPanel){display:none!important}
+      #mainContent.hxlab-imss-only #hxlabImssPanel{display:block!important;margin-top:0!important;contain:layout style paint}
       .hxli-card-click{cursor:pointer}
       .hxli-card-click:focus{outline:2px solid var(--accent-md);outline-offset:2px}
+      #hxliBackLaboral{margin-bottom:12px}
+      #hxLaboralView{contain:layout style}
     `;
     document.head.appendChild(style);
   }
@@ -25,89 +35,141 @@
     }
   }
 
+  function clearModes() {
+    const main = document.getElementById('mainContent');
+    if (!main) return;
+    main.classList.remove('hxlab-force', 'hxlab-imss-only');
+  }
+
   function forceLaboralVisible() {
     if (!isAdmin()) return false;
     const main = document.getElementById('mainContent');
     const laboralBtn = document.getElementById('hxLaboralBtn');
-    const divisasBtn = document.getElementById('hxDivisasBtn');
     const laboralView = document.getElementById('hxLaboralView');
     if (!main || !laboralBtn || !laboralView) return false;
 
-    divisasBtn?.classList.remove('active');
-    main.classList.remove('hxfx-only');
+    document.getElementById('hxDivisasBtn')?.classList.remove('active');
+    main.classList.remove('hxfx-only', 'hxlab-imss-only');
     main.classList.add('hxlab-force');
     laboralBtn.classList.add('active');
+    laboralView.style.setProperty('display', 'block', 'important');
+    laboralView.style.setProperty('visibility', 'visible', 'important');
     laboralView.removeAttribute('aria-hidden');
     return true;
   }
 
-  function releaseLaboralForce() {
-    document.getElementById('mainContent')?.classList.remove('hxlab-force');
+  function ensureBackButton(panel) {
+    if (!panel || document.getElementById('hxliBackLaboral')) return;
+    const back = document.createElement('button');
+    back.id = 'hxliBackLaboral';
+    back.type = 'button';
+    back.className = 'hxlab-btn';
+    back.textContent = '← Volver a Laboral HX';
+    back.addEventListener('click', () => {
+      const main = document.getElementById('mainContent');
+      main?.classList.remove('hxlab-imss-only');
+      main?.classList.add('hxlab-force');
+      document.getElementById('hxLaboralView')?.scrollIntoView({ block: 'start' });
+    });
+    panel.prepend(back);
   }
 
-  function retryForceLaboral(scrollToImss = false) {
+  function openImssOnly() {
+    if (!isAdmin()) return false;
+    const main = document.getElementById('mainContent');
+    const view = document.getElementById('hxLaboralView');
+    const panel = document.getElementById('hxlabImssPanel');
+    if (!main || !view || !panel) return false;
+
+    main.classList.remove('hxfx-only', 'hxlab-force');
+    main.classList.add('hxlab-imss-only');
+    view.style.setProperty('display', 'block', 'important');
+    panel.style.setProperty('display', 'block', 'important');
+    ensureBackButton(panel);
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => panel.querySelector('input,select,button')?.focus?.({ preventScroll: true }), 250);
+    return true;
+  }
+
+  function retryOpen(mode) {
     let attempts = 0;
     const run = () => {
       attempts += 1;
-      const ready = forceLaboralVisible();
-      const panel = document.getElementById('hxlabImssPanel');
-      if (ready && (!scrollToImss || panel)) {
-        if (scrollToImss && panel) {
-          panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          const first = panel.querySelector('input,select,button');
-          if (first instanceof HTMLElement) setTimeout(() => first.focus({ preventScroll: true }), 350);
-        }
-        return;
-      }
-      if (attempts < 40) setTimeout(run, 100);
+      const ok = mode === 'imss' ? openImssOnly() : forceLaboralVisible();
+      if (ok || attempts >= 18) return;
+      setTimeout(run, 90);
     };
     setTimeout(run, 0);
   }
 
-  function enhanceImssCard() {
+  function isImssCard(target) {
+    const card = target?.closest?.('.hxlab-status');
+    if (!card) return null;
+    const title = card.querySelector('.hxlab-status-title')?.textContent || '';
+    return /IMSS/i.test(title) ? card : null;
+  }
+
+  function prepareImssCard() {
     const view = document.getElementById('hxLaboralView');
-    if (!view) return;
-    const cards = [...view.querySelectorAll('.hxlab-status')];
-    const card = cards.find(c => /IMSS/i.test(c.querySelector('.hxlab-status-title')?.textContent || ''));
-    if (!card || card.dataset.hxNavFixed === '1') return;
-    card.dataset.hxNavFixed = '1';
+    if (!view) return false;
+    const card = [...view.querySelectorAll('.hxlab-status')].find(c => /IMSS/i.test(c.querySelector('.hxlab-status-title')?.textContent || ''));
+    if (!card) return false;
     card.classList.add('hxli-card-click');
     card.setAttribute('role', 'button');
     card.setAttribute('tabindex', '0');
     card.setAttribute('aria-label', 'Abrir IMSS y costo patronal');
-    const open = event => {
-      if (event.type === 'keydown' && !['Enter', ' '].includes(event.key)) return;
-      if (event.type === 'keydown') event.preventDefault();
-      retryForceLaboral(true);
-    };
-    card.addEventListener('click', open);
-    card.addEventListener('keydown', open);
+    return true;
+  }
+
+  function prepareAfterLaboralOpen() {
+    let attempts = 0;
+    const timer = setInterval(() => {
+      attempts += 1;
+      if (prepareImssCard() || attempts >= 16) clearInterval(timer);
+    }, 100);
   }
 
   function init() {
     addStyles();
 
     document.addEventListener('click', event => {
-      const laboral = event.target.closest?.('#hxLaboralBtn');
-      if (laboral) {
-        releaseLaboralForce();
-        retryForceLaboral(false);
+      if (event.target.closest?.('#hxLaboralBtn')) {
+        clearModes();
+        retryOpen('laboral');
+        prepareAfterLaboralOpen();
         return;
       }
 
-      const divisas = event.target.closest?.('#hxDivisasBtn');
-      if (divisas) {
-        releaseLaboralForce();
+      const imssCard = isImssCard(event.target);
+      if (imssCard) {
+        retryOpen('imss');
+        return;
+      }
+
+      if (event.target.closest?.('#hxDivisasBtn')) {
+        clearModes();
         return;
       }
 
       const side = event.target.closest?.('.side-btn');
-      if (side && side.id !== 'hxLaboralBtn') releaseLaboralForce();
+      if (side && side.id !== 'hxLaboralBtn') clearModes();
     }, true);
 
-    const observer = new MutationObserver(() => enhanceImssCard());
-    observer.observe(document.body, { childList: true, subtree: true });
-    enhanceImssCard();
+    document.addEventListener('keydown', event => {
+      if (!['Enter', ' '].includes(event.key)) return;
+      const card = isImssCard(event.target);
+      if (!card) return;
+      event.preventDefault();
+      retryOpen('imss');
+    });
+
+    // Limited startup preparation only. Avoid full-page MutationObserver to keep the app light.
+    let startup = 0;
+    const timer = setInterval(() => {
+      startup += 1;
+      prepareImssCard();
+      if (startup >= 16) clearInterval(timer);
+    }, 150);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
