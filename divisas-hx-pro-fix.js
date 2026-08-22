@@ -8,6 +8,9 @@
     const style = document.createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
+      .sidebar{position:relative!important;z-index:40!important;isolation:isolate}
+      #adminSideSection{position:relative!important;z-index:50!important;pointer-events:auto!important}
+      #hxDivisasBtn,#hxLaboralBtn{position:relative!important;z-index:60!important;pointer-events:auto!important}
       #mainContent.hxfx-only > :not(#hxDivisasView){display:none!important}
       #mainContent.hxfx-only #hxDivisasView{display:block!important;visibility:visible!important;opacity:1!important;margin-top:0!important}
       #mainContent.hxfx-only #cardsGrid,
@@ -57,7 +60,6 @@
       if (side && side.id !== 'hxDivisasBtn') setMode(false);
     }, true);
 
-    // Lightweight startup sync only; no global MutationObserver.
     let startup = 0;
     const timer = setInterval(() => {
       startup += 1;
