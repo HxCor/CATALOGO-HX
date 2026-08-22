@@ -8,7 +8,9 @@
     const style = document.createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
-      #hxLaboralBtn,#hxDivisasBtn{position:relative;pointer-events:auto!important}
+      .sidebar{position:relative!important;z-index:40!important;isolation:isolate}
+      #adminSideSection{position:relative!important;z-index:50!important;pointer-events:auto!important}
+      #hxLaboralBtn,#hxDivisasBtn{position:relative!important;z-index:60!important;pointer-events:auto!important}
       #mainContent.hxlab-force > :not(#hxLaboralView){display:none!important}
       #mainContent.hxlab-force #hxLaboralView{display:block!important;visibility:visible!important;opacity:1!important}
       #mainContent.hxlab-force #cardsGrid,
@@ -19,7 +21,7 @@
       #mainContent.hxlab-imss-only #hxLaboralView{display:block!important;visibility:visible!important;opacity:1!important}
       #mainContent.hxlab-imss-only #hxLaboralView > :not(#hxlabImssPanel){display:none!important}
       #mainContent.hxlab-imss-only #hxlabImssPanel{display:block!important;margin-top:0!important;contain:layout style paint}
-      .hxli-card-click{cursor:pointer}
+      .hxli-card-click{cursor:pointer;position:relative;z-index:2;pointer-events:auto!important}
       .hxli-card-click:focus{outline:2px solid var(--accent-md);outline-offset:2px}
       #hxliBackLaboral{margin-bottom:12px}
       #hxLaboralView{contain:layout style}
@@ -163,7 +165,6 @@
       retryOpen('imss');
     });
 
-    // Limited startup preparation only. Avoid full-page MutationObserver to keep the app light.
     let startup = 0;
     const timer = setInterval(() => {
       startup += 1;
