@@ -1,0 +1,51 @@
+name: CATALOGO-HX Single QA User
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/create-single-test-user.yml'
+      - 'qa/create-single-test-user.mjs'
+      - 'single-test-user-trigger.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: catalogo-hx-single-qa-user
+  cancel-in-progress: false
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    env:
+      API_BASE: https://catalogo-hx-backend.armando-avila.workers.dev
+      AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+      AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+      USERS_TABLE_ID: tbleeFejdXclP3md1
+      RESULT_FILE: single-test-user-result.txt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Provision exactly one secure QA viewer
+        run: node qa/create-single-test-user.mjs
+      - name: Persist result
+        if: always()
+        run: |
+          cat "$RESULT_FILE" || true
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add "$RESULT_FILE" || true
+          git commit -m "Update single QA user result" || exit 0
+          git pull --rebase || true
+          git push
+      - name: Enforce result
+        if: always()
+        run: |
+          grep -q '^ONLY_ONE_TEST_USER=PASS$' "$RESULT_FILE" || exit 1
+          grep -q '^PASSWORD_HASH_ONLY=PASS$' "$RESULT_FILE" || exit 1
+          grep -q '^ROLE_VIEWER=PASS$' "$RESULT_FILE" || exit 1
+          grep -q '^OVERALL=PASS$' "$RESULT_FILE" || exit 1
