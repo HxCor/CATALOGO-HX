@@ -65,8 +65,19 @@
     addRecipientField();
     const pdf = document.getElementById('hxfxPdf');
     const mail = document.getElementById('hxfxEmail');
-    if (pdf) { pdf.textContent = 'Descargar PDF'; pdf.title = 'Descargar cotización profesional en PDF'; }
-    if (mail) { mail.textContent = 'Enviar por Gmail'; mail.title = 'Descarga el PDF y abre Gmail con el correo prellenado'; }
+    // MutationObserver calls decorate() after every DOM change. Rewriting
+    // textContent on every call creates another mutation and can lock the UI
+    // in an infinite callback loop as soon as Divisas is opened.
+    if (pdf && pdf.dataset.hxDocumentDecorated !== '1') {
+      pdf.dataset.hxDocumentDecorated = '1';
+      pdf.textContent = 'Descargar PDF';
+      pdf.title = 'Descargar cotización profesional en PDF';
+    }
+    if (mail && mail.dataset.hxDocumentDecorated !== '1') {
+      mail.dataset.hxDocumentDecorated = '1';
+      mail.textContent = 'Enviar por Gmail';
+      mail.title = 'Descarga el PDF y abre Gmail con el correo prellenado';
+    }
   }
 
   function pdfText(cmd, x, y, size, text, bold = false, color = '0.10 0.09 0.08') {
