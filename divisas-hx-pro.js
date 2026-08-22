@@ -5,6 +5,7 @@
   const SOURCE = 'https://www.eldolar.info/es-MX/mexico/dia/hoy';
   let active = false;
   let refreshTimer = null;
+  let opening = false;
   let currentRate = null;
   let hxProvider = { nombre: 'HX', rfc: '', email: '' };
   let lastQuote = null;
@@ -15,12 +16,21 @@
   const token = () => sessionStorage.getItem('hxSessionToken') || '';
 
   async function api(path, options = {}) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
     const headers = { ...(options.headers || {}), Authorization: `Bearer ${token()}` };
     if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
-    const r = await fetch(`${API}${path}`, { ...options, headers, cache: 'no-store' });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok || data.ok === false) throw new Error(data.error || `HTTP ${r.status}`);
-    return data;
+    try {
+      const r = await fetch(`${API}${path}`, { ...options, headers, signal: controller.signal, cache: 'no-store' });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || data.ok === false) throw new Error(data.error || `HTTP ${r.status}`);
+      return data;
+    } catch (error) {
+      if (error?.name === 'AbortError') throw new Error('El servidor tardó demasiado en responder. Intenta actualizar.');
+      throw error;
+    } finally {
+      window.clearTimeout(timeout);
+    }
   }
 
   function addStyles() {
@@ -64,23 +74,16 @@
   function hideOriginal() {
     const main = document.getElementById('mainContent');
     if (!main) return;
-    [...main.children].forEach(el => {
-      if (el.id === 'hxDivisasView') return;
-      if (!el.hasAttribute('data-hxfx-old-display')) el.setAttribute('data-hxfx-old-display', el.style.display || '');
-      el.style.display = 'none';
-    });
+    main.classList.remove('hxlab-force', 'hxlab-imss-only');
+    main.classList.add('hxfx-only');
   }
 
   function restoreOriginal() {
     const main = document.getElementById('mainContent');
     if (!main) return;
-    [...main.children].forEach(el => {
-      if (el.id === 'hxDivisasView') { el.style.display = 'none'; return; }
-      if (el.hasAttribute('data-hxfx-old-display')) {
-        el.style.display = el.getAttribute('data-hxfx-old-display');
-        el.removeAttribute('data-hxfx-old-display');
-      }
-    });
+    main.classList.remove('hxfx-only');
+    const view = document.getElementById('hxDivisasView');
+    if (view) view.style.display = 'none';
   }
 
   function closeView() {
@@ -91,7 +94,9 @@
     restoreOriginal();
   }
 
-  async function openView() {
+  function openView() {
+    if (opening) return;
+    opening = true;
     active = true;
     document.querySelectorAll('.side-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('hxDivisasBtn')?.classList.add('active');
@@ -105,9 +110,16 @@
       bindEvents();
     }
     view.style.display = 'block';
-    await Promise.allSettled([loadProvider(), loadCurrent(), loadQuotes(), loadAlerts(), loadHistory(7)]);
     clearInterval(refreshTimer);
     refreshTimer = setInterval(() => active && loadCurrent(false), 420000);
+
+    // La vista queda pintada antes de consultar la red. Esto evita que un API
+    // lento o varios MutationObserver bloqueen el clic de navegación.
+    window.setTimeout(() => {
+      opening = false;
+      if (!active) return;
+      Promise.allSettled([loadProvider(), loadCurrent(), loadQuotes(), loadAlerts(), loadHistory(7)]);
+    }, 0);
   }
 
   function renderShell(root) {
@@ -342,8 +354,13 @@
   function init() {
     addStyles();
     addMenuButton();
-    const obs = new MutationObserver(addMenuButton);
-    obs.observe(document.body, { childList: true, subtree: true });
+    if (!document.getElementById('hxDivisasBtn')) {
+      const obs = new MutationObserver(() => {
+        addMenuButton();
+        if (document.getElementById('hxDivisasBtn')) obs.disconnect();
+      });
+      obs.observe(document.body, { childList: true, subtree: true });
+    }
   }
 
   init();
