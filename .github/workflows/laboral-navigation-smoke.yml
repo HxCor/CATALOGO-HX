@@ -1,0 +1,146 @@
+name: CATALOGO-HX Laboral Navigation Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/laboral-navigation-smoke.yml'
+      - 'index.html'
+      - 'laboral-navigation-fix.js'
+      - 'laboral-hx.js'
+      - 'laboral-imss.js'
+      - 'divisas-hx-pro.js'
+      - 'divisas-hx-pro-fix.js'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: https://hxcor.github.io/CATALOGO-HX/
+      AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+      AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+      USERS_TABLE_ID: tbleeFejdXclP3md1
+      RESULT_FILE: laboral-navigation-smoke-result.txt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Create disposable admin
+        id: user
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : > "$RESULT_FILE"
+          echo "CHECKED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT_FILE"
+          U="laboral-nav-smoke-$(date +%s)-$RANDOM"
+          P="$(openssl rand -hex 18)"
+          jq -n --arg u "$U" --arg p "$P" '{records:[{fields:{"Nombre completo":"Laboral Navigation Smoke","Usuario":$u,"Usuario (login)":$u,"Contraseña":$p,"Rol":"admin"}}]}' >/tmp/lab-user.json
+          curl -fsS -X POST -H "Authorization: Bearer $AIRTABLE_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/lab-user.json "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID" >/tmp/lab-created.json
+          ID=$(jq -r '.records[0].id // empty' /tmp/lab-created.json)
+          test -n "$ID"
+          { echo "u=$U"; echo "p=$P"; echo "id=$ID"; } >> "$GITHUB_OUTPUT"
+          echo 'TEMP_ADMIN_CREATED=PASS' >> "$RESULT_FILE"
+      - name: Test Laboral and IMSS navigation
+        env:
+          U: ${{ steps.user.outputs.u }}
+          P: ${{ steps.user.outputs.p }}
+        shell: bash
+        run: |
+          cat > laboral-nav-smoke.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import fs from 'node:fs';
+          const out=process.env.RESULT_FILE;
+          const log=s=>fs.appendFileSync(out,s+'\n');
+          const browser=await chromium.launch({headless:true});
+          const page=await browser.newPage({viewport:{width:1440,height:1100}});
+          try {
+            await page.goto(`${process.env.SITE_URL}?laboral-nav-smoke=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});
+            await page.locator('#loginUser').waitFor({state:'visible',timeout:30000});
+            await page.locator('#loginUser').fill(process.env.U);
+            await page.locator('#loginPass').fill(process.env.P);
+            await page.locator('#btnLogin').click();
+            await page.waitForFunction(()=>document.body.classList.contains('is-admin'),null,{timeout:30000});
+            log('ADMIN_LOGIN=PASS');
+
+            const laboral=page.locator('#hxLaboralBtn');
+            await laboral.waitFor({state:'visible',timeout:30000});
+            await laboral.click();
+            await page.locator('#hxLaboralView').waitFor({state:'visible',timeout:20000});
+            await page.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:20000});
+            log('LABORAL_ENTRY=PASS');
+
+            const imssCard=page.locator('.hxlab-status').filter({hasText:'IMSS / costo patronal'}).first();
+            await imssCard.waitFor({state:'visible',timeout:10000});
+            await imssCard.click();
+            await page.waitForTimeout(700);
+            const panelBox=await page.locator('#hxlabImssPanel').boundingBox();
+            if(!panelBox) throw new Error('IMSS panel has no bounding box');
+            log('IMSS_CARD_ENTRY=PASS');
+
+            await page.locator('#hxliMonthly').fill('30000');
+            await page.locator('#hxliServiceYear').fill('1');
+            await page.locator('#hxliVacationDays').fill('12');
+            await page.locator('#hxliCalculate').click();
+            await page.waitForFunction(()=>/Costo patronal mensual estimado/i.test(document.querySelector('#hxliResult')?.innerText||''),null,{timeout:30000});
+            const result=await page.locator('#hxliResult').innerText();
+            for(const text of ['SBC diario','INFONAVIT','Costo anual estimado','Fundamento del cálculo','NO ES DETERMINACIÓN OFICIAL']) if(!result.includes(text)) throw new Error(`IMSS result missing ${text}`);
+            log('IMSS_CALCULATION_UI=PASS');
+
+            const divisas=page.locator('#hxDivisasBtn');
+            await divisas.waitFor({state:'visible',timeout:10000});
+            await divisas.click();
+            await page.locator('#hxDivisasView').waitFor({state:'visible',timeout:20000});
+            log('DIVISAS_ENTRY=PASS');
+
+            await laboral.click();
+            await page.locator('#hxLaboralView').waitFor({state:'visible',timeout:20000});
+            await page.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:20000});
+            const state=await page.evaluate(()=>({lab:document.querySelector('#hxLaboralBtn')?.classList.contains('active'),fx:document.querySelector('#mainContent')?.classList.contains('hxfx-only'),force:document.querySelector('#mainContent')?.classList.contains('hxlab-force')}));
+            if(!state.lab || state.fx) throw new Error(`navigation conflict ${JSON.stringify(state)}`);
+            log('DIVISAS_TO_LABORAL_RETURN=PASS');
+            log('OVERALL=PASS');
+          } catch(e) {
+            log(`ERROR=${String(e.message||e).replace(/\s+/g,'_').slice(0,400)}`);
+            log('OVERALL=FAIL');
+            throw e;
+          } finally {
+            await browser.close();
+          }
+          JS
+          node laboral-nav-smoke.mjs
+      - name: Cleanup disposable admin
+        if: always()
+        env:
+          ID: ${{ steps.user.outputs.id }}
+        shell: bash
+        run: |
+          set +e
+          [ -z "$ID" ] || curl -sS -X DELETE -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID/$ID" >/dev/null
+          sleep 2
+          curl -fsS -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID?pageSize=100" >/tmp/lab-users-final.json
+          LEFT=$(jq '[.records[].fields.Usuario // "" | select(startswith("laboral-nav-smoke-"))] | length' /tmp/lab-users-final.json)
+          [ "$LEFT" = 0 ] && echo 'TEMP_ADMIN_CLEANUP=PASS' >> "$RESULT_FILE" || echo "TEMP_ADMIN_CLEANUP=FAIL:left_$LEFT" >> "$RESULT_FILE"
+      - name: Persist result
+        if: always()
+        run: |
+          cat "$RESULT_FILE"
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add "$RESULT_FILE"
+          git commit -m "Update Laboral navigation smoke result" || exit 0
+          git pull --rebase || true
+          git push
+      - name: Enforce result
+        if: always()
+        run: |
+          grep -q '^OVERALL=PASS$' "$RESULT_FILE" || exit 1
+          grep -q '^TEMP_ADMIN_CLEANUP=PASS$' "$RESULT_FILE" || exit 1
