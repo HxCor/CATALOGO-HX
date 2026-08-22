@@ -7,28 +7,14 @@
     if (document.getElementById(STYLE_ID)) return;
     const style = document.createElement('style');
     style.id = STYLE_ID;
-    style.textContent = `
-      body.is-viewer #hxLaboralBtn,
-      body:not(.is-admin) #hxLaboralBtn {
-        display: none !important;
-        visibility: hidden !important;
-        pointer-events: none !important;
-      }
-      body.is-viewer #hxLaboralView,
-      body:not(.is-admin) #hxLaboralView {
-        display: none !important;
-        visibility: hidden !important;
-      }
-    `;
+    style.textContent = '#hxToolsSideSection{display:block!important;visibility:visible!important}';
     document.head.appendChild(style);
   }
 
-  function isAdmin() {
+  function isAuthenticated() {
     return Boolean(
-      document.body.classList.contains('is-admin') &&
       typeof currentUser !== 'undefined' &&
-      currentUser &&
-      String(currentUser.rol || '').toLowerCase() === 'admin'
+      currentUser
     );
   }
 
@@ -36,7 +22,7 @@
     ensureStyles();
     const button = document.getElementById('hxLaboralBtn');
     const view = document.getElementById('hxLaboralView');
-    const allowed = isAdmin();
+    const allowed = isAuthenticated();
 
     if (button) {
       button.setAttribute('aria-hidden', allowed ? 'false' : 'true');
@@ -54,7 +40,7 @@
 
   document.addEventListener('click', event => {
     const button = event.target.closest?.('#hxLaboralBtn');
-    if (!button || isAdmin()) return;
+    if (!button || isAuthenticated()) return;
     event.preventDefault();
     event.stopImmediatePropagation();
   }, true);

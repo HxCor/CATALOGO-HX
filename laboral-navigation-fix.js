@@ -29,9 +29,9 @@
     document.head.appendChild(style);
   }
 
-  function isAdmin() {
+  function isAuthenticated() {
     try {
-      return typeof currentUser !== 'undefined' && currentUser && String(currentUser.rol || '').toLowerCase() === 'admin';
+      return typeof currentUser !== 'undefined' && Boolean(currentUser);
     } catch {
       return false;
     }
@@ -44,7 +44,7 @@
   }
 
   function forceLaboralVisible() {
-    if (!isAdmin()) return false;
+    if (!isAuthenticated()) return false;
     const main = document.getElementById('mainContent');
     const laboralBtn = document.getElementById('hxLaboralBtn');
     const laboralView = document.getElementById('hxLaboralView');
@@ -77,7 +77,7 @@
   }
 
   function openImssOnly() {
-    if (!isAdmin()) return false;
+    if (!isAuthenticated()) return false;
     const main = document.getElementById('mainContent');
     const view = document.getElementById('hxLaboralView');
     const panel = document.getElementById('hxlabImssPanel');

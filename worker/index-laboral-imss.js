@@ -73,10 +73,10 @@ function delegatedRequest(request, pathname) {
   });
 }
 
-async function adminAuthenticated(request, env, ctx) {
+async function sessionAuthenticated(request, env, ctx) {
   const auth = request.headers.get('Authorization') || '';
   if (!auth.startsWith('Bearer ')) return false;
-  const response = await app.fetch(delegatedRequest(request, '/usuarios'), env, ctx);
+  const response = await app.fetch(delegatedRequest(request, '/proveedores'), env, ctx);
   return response.ok;
 }
 
@@ -148,7 +148,7 @@ function line(label, daily, days, annualDays = 365) {
 async function calculateImss(request, env, ctx) {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(request) });
   if (request.method !== 'POST') return json(request, { ok: false, error: 'Método no permitido' }, 405);
-  if (!(await adminAuthenticated(request, env, ctx))) return json(request, { ok: false, error: 'No autorizado' }, 403);
+  if (!(await sessionAuthenticated(request, env, ctx))) return json(request, { ok: false, error: 'No autorizado' }, 401);
 
   let body = {};
   try { body = await request.json(); } catch { return json(request, { ok: false, error: 'Solicitud inválida' }, 400); }

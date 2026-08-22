@@ -10,8 +10,8 @@
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const token = () => sessionStorage.getItem('hxSessionToken') || '';
 
-  function isAdmin() {
-    try { return typeof currentUser !== 'undefined' && currentUser && String(currentUser.rol || '').toLowerCase() === 'admin'; }
+  function isAuthenticated() {
+    try { return typeof currentUser !== 'undefined' && Boolean(currentUser); }
     catch { return false; }
   }
 
@@ -116,7 +116,7 @@
   }
 
   function injectPanel(view) {
-    if (!isAdmin() || document.getElementById('hxlabImssPanel')) return;
+    if (!isAuthenticated() || document.getElementById('hxlabImssPanel')) return;
     addStyles();
     const cards = [...view.querySelectorAll('.hxlab-status')];
     const imssCard = cards.find(card => /IMSS/i.test(card.querySelector('.hxlab-status-title')?.textContent || ''));
@@ -148,7 +148,7 @@
             <div class="hxlab-field"><label>Otros integrables diarios</label><input class="hxlab-input" id="hxliOtherDaily" type="number" min="0" step="0.01" value="0"></div>
             <div class="hxlab-field"><label>Clase de riesgo inicial</label><select class="hxlab-select" id="hxliRiskClass"><option value="I">Clase I · 0.54355%</option><option value="II">Clase II · 1.13065%</option><option value="III">Clase III · 2.59840%</option><option value="IV">Clase IV · 4.65325%</option><option value="V">Clase V · 7.58875%</option></select></div>
             <div class="hxlab-field"><label>Prima de riesgo vigente % (opcional)</label><input class="hxlab-input" id="hxliRiskCustom" type="number" min="0" max="15" step="0.00001" value="0"><div class="hxli-risk-note">Si capturas una prima, sustituye la clase inicial. Rango general Art. 74: 0.5%–15%.</div></div>
-            <div class="hxlab-calc-actions"><button class="hxlab-btn primary" id="hxliCalculate">Calcular IMSS / costo</button><span class="hxlab-calc-note">2026 · parámetros versionados · administrador</span></div>
+            <div class="hxlab-calc-actions"><button class="hxlab-btn primary" id="hxliCalculate">Calcular IMSS / costo</button><span class="hxlab-calc-note">2026 · parámetros versionados</span></div>
           </div>
         </div>
         <div class="hxli-result" id="hxliResult"><div class="hxlab-result-empty"><div>Captura sueldo y condiciones para estimar el SBC y la carga social.<br><br><b>Incluye:</b> IMSS patrón/trabajador, Riesgos de Trabajo, Retiro, CEAV 2026, Guarderías e INFONAVIT 5%.</div></div></div>
@@ -165,7 +165,7 @@
   }
 
   function scan() {
-    if (!isAdmin()) return;
+    if (!isAuthenticated()) return;
     const view = document.getElementById('hxLaboralView');
     if (view) injectPanel(view);
   }

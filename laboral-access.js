@@ -1,16 +1,16 @@
 (() => {
   'use strict';
 
-  function isAdmin() {
+  function isAuthenticated() {
     try {
-      return typeof currentUser !== 'undefined' && currentUser && String(currentUser.rol || '').toLowerCase() === 'admin';
+      return typeof currentUser !== 'undefined' && Boolean(currentUser);
     } catch {
       return false;
     }
   }
 
   function syncLaboralAccess() {
-    const allowed = isAdmin();
+    const allowed = isAuthenticated();
     const button = document.getElementById('hxLaboralBtn');
     if (button) {
       button.style.setProperty('display', allowed ? '' : 'none', 'important');

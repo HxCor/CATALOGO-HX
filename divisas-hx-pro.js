@@ -55,15 +55,24 @@
   }
 
   function addMenuButton() {
+    const sidebar = document.querySelector('.sidebar');
     const admin = document.getElementById('adminSideSection');
-    if (!admin || document.getElementById('hxDivisasBtn')) return;
+    if (!sidebar || document.getElementById('hxDivisasBtn')) return;
+    let tools = document.getElementById('hxToolsSideSection');
+    if (!tools) {
+      tools = document.createElement('div');
+      tools.className = 'side-section';
+      tools.id = 'hxToolsSideSection';
+      tools.innerHTML = '<div class="side-label">HERRAMIENTAS HX</div>';
+      sidebar.insertBefore(tools, admin || null);
+    }
     const btn = document.createElement('button');
     btn.className = 'side-btn';
     btn.id = 'hxDivisasBtn';
     btn.type = 'button';
     btn.innerHTML = '<span class="side-icon">💱</span> Divisas HX Pro';
     btn.addEventListener('click', openView);
-    admin.appendChild(btn);
+    tools.appendChild(btn);
 
     document.querySelector('.sidebar')?.addEventListener('click', e => {
       const other = e.target.closest('.side-btn');

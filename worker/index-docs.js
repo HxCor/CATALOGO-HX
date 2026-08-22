@@ -319,7 +319,7 @@ function calculateLaboral(body, params) {
 async function handleLaboralParameters(request, env, ctx) {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(request) });
   if (request.method !== 'GET') return json(request, { ok: false, error: 'Método no permitido' }, 405);
-  if (!(await adminAuthenticated(request, env, ctx))) return json(request, { ok: false, error: 'Acceso restringido' }, 403);
+  if (!(await authenticated(request, env, ctx))) return json(request, { ok: false, error: 'No autorizado' }, 401);
   const loaded = await loadLaboralParameters(env);
   return json(request, {
     ok: true,
@@ -334,7 +334,7 @@ async function handleLaboralParameters(request, env, ctx) {
 async function handleLaboralCalculate(request, env, ctx) {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(request) });
   if (request.method !== 'POST') return json(request, { ok: false, error: 'Método no permitido' }, 405);
-  if (!(await adminAuthenticated(request, env, ctx))) return json(request, { ok: false, error: 'Acceso restringido' }, 403);
+  if (!(await authenticated(request, env, ctx))) return json(request, { ok: false, error: 'No autorizado' }, 401);
 
   let body = {};
   try { body = await request.json(); } catch { return json(request, { ok: false, error: 'Solicitud inválida' }, 400); }

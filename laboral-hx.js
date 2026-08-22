@@ -56,15 +56,24 @@
   }
 
   function addMenuButton() {
+    const sidebar = document.querySelector('.sidebar');
     const admin = document.getElementById('adminSideSection');
-    if (!admin || document.getElementById('hxLaboralBtn')) return false;
+    if (!sidebar || document.getElementById('hxLaboralBtn')) return false;
+    let tools = document.getElementById('hxToolsSideSection');
+    if (!tools) {
+      tools = document.createElement('div');
+      tools.className = 'side-section';
+      tools.id = 'hxToolsSideSection';
+      tools.innerHTML = '<div class="side-label">HERRAMIENTAS HX</div>';
+      sidebar.insertBefore(tools, admin || null);
+    }
     const btn = document.createElement('button');
     btn.className = 'side-btn';
     btn.id = 'hxLaboralBtn';
     btn.type = 'button';
     btn.innerHTML = '<span class="side-icon">⚖️</span> Laboral HX';
     btn.addEventListener('click', openView);
-    admin.appendChild(btn);
+    tools.appendChild(btn);
 
     document.querySelector('.sidebar')?.addEventListener('click', event => {
       const other = event.target.closest('.side-btn');
