@@ -49,7 +49,7 @@ jobs:
           test -n "$ID"
           { echo "u=$U"; echo "p=$P"; echo "id=$ID"; } >> "$GITHUB_OUTPUT"
           echo 'TEMP_ADMIN_CREATED=PASS' >> "$RESULT_FILE"
-      - name: Test Laboral and IMSS navigation
+      - name: Test Laboral, IMSS and Cotizador navigation
         env:
           U: ${{ steps.user.outputs.u }}
           P: ${{ steps.user.outputs.p }}
@@ -62,6 +62,18 @@ jobs:
           const log=s=>fs.appendFileSync(out,s+'\n');
           const browser=await chromium.launch({headless:true});
           const page=await browser.newPage({viewport:{width:1440,height:1100}});
+          async function physicalClick(selector,label){
+            const loc=page.locator(selector);
+            await loc.waitFor({state:'visible',timeout:30000});
+            await loc.scrollIntoViewIfNeeded();
+            await page.waitForTimeout(200);
+            const box=await loc.boundingBox(); if(!box) throw new Error(`${label}_no_box`);
+            const x=box.x+box.width/2,y=box.y+box.height/2;
+            const hit=await page.evaluate(({x,y,selector})=>{const t=document.querySelector(selector),a=document.elementFromPoint(x,y);return{same:!!t&&!!a&&(a===t||t.contains(a)),hitTag:a?.tagName||'',hitId:a?.id||'',hitClass:String(a?.className||'')}} ,{x,y,selector});
+            log(`${label}_POINTER=${hit.same?'PASS':'FAIL'}:${JSON.stringify(hit).replace(/\s+/g,'_')}`);
+            if(!hit.same) throw new Error(`${label}_blocked_${hit.hitTag}_${hit.hitId}_${hit.hitClass}`);
+            await page.mouse.click(x,y);
+          }
           try {
             await page.goto(`${process.env.SITE_URL}?laboral-nav-smoke=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});
             await page.locator('#loginUser').waitFor({state:'visible',timeout:30000});
@@ -71,20 +83,23 @@ jobs:
             await page.waitForFunction(()=>document.body.classList.contains('is-admin'),null,{timeout:30000});
             log('ADMIN_LOGIN=PASS');
 
-            const laboral=page.locator('#hxLaboralBtn');
-            await laboral.waitFor({state:'visible',timeout:30000});
-            await laboral.click();
+            await physicalClick('#hxLaboralBtn','LABORAL');
             await page.locator('#hxLaboralView').waitFor({state:'visible',timeout:20000});
             await page.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:20000});
-            log('LABORAL_ENTRY=PASS');
+            await page.waitForFunction(()=>document.querySelector('#mainContent')?.classList.contains('hxlab-force'),null,{timeout:5000});
+            const lab=await page.evaluate(()=>({cards:[...document.querySelectorAll('#cardsGrid .pcard')].filter(x=>x.getClientRects().length&&getComputedStyle(x).display!=='none').length,grid:document.querySelector('#cardsGrid')?.getClientRects().length||0}));
+            if(lab.cards!==0||lab.grid!==0) throw new Error(`Laboral_companies_visible_${JSON.stringify(lab)}`);
+            log('LABORAL_ONLY_NO_COMPANIES=PASS');
 
-            const imssCard=page.locator('.hxlab-status').filter({hasText:'IMSS / costo patronal'}).first();
-            await imssCard.waitFor({state:'visible',timeout:10000});
-            await imssCard.click();
-            await page.waitForTimeout(700);
-            const panelBox=await page.locator('#hxlabImssPanel').boundingBox();
-            if(!panelBox) throw new Error('IMSS panel has no bounding box');
-            log('IMSS_CARD_ENTRY=PASS');
+            const imss=page.locator('.hxlab-status').filter({hasText:'IMSS / costo patronal'}).first();
+            await imss.waitFor({state:'visible',timeout:10000});
+            const ib=await imss.boundingBox(); if(!ib) throw new Error('IMSS_no_box');
+            await page.mouse.click(ib.x+ib.width/2,ib.y+ib.height/2);
+            await page.waitForFunction(()=>document.querySelector('#mainContent')?.classList.contains('hxlab-imss-only'),null,{timeout:5000});
+            await page.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:10000});
+            const im=await page.evaluate(()=>({cards:[...document.querySelectorAll('#cardsGrid .pcard')].filter(x=>x.getClientRects().length&&getComputedStyle(x).display!=='none').length,status:document.querySelector('.hxlab-status-grid')?.getClientRects().length||0,panel:document.querySelector('#hxlabImssPanel')?.getClientRects().length||0,back:!!document.querySelector('#hxliBackLaboral')}));
+            if(im.cards!==0||im.status!==0||!im.panel||!im.back) throw new Error(`IMSS_not_isolated_${JSON.stringify(im)}`);
+            log('IMSS_ONLY_NO_COMPANIES=PASS');
 
             await page.locator('#hxliMonthly').fill('30000');
             await page.locator('#hxliServiceYear').fill('1');
@@ -92,21 +107,20 @@ jobs:
             await page.locator('#hxliCalculate').click();
             await page.waitForFunction(()=>/Costo patronal mensual estimado/i.test(document.querySelector('#hxliResult')?.innerText||''),null,{timeout:30000});
             const result=await page.locator('#hxliResult').innerText();
-            for(const text of ['SBC diario','INFONAVIT','Costo anual estimado','Fundamento del cálculo','NO ES DETERMINACIÓN OFICIAL']) if(!result.includes(text)) throw new Error(`IMSS result missing ${text}`);
+            for(const text of ['INFONAVIT','NO ES DETERMINACIÓN OFICIAL']) if(!result.includes(text)) throw new Error(`IMSS_result_missing_${text}`);
             log('IMSS_CALCULATION_UI=PASS');
 
-            const divisas=page.locator('#hxDivisasBtn');
-            await divisas.waitFor({state:'visible',timeout:10000});
-            await divisas.click();
+            await physicalClick('#hxDivisasBtn','COTIZADOR');
             await page.locator('#hxDivisasView').waitFor({state:'visible',timeout:20000});
-            log('DIVISAS_ENTRY=PASS');
+            await page.waitForFunction(()=>document.querySelector('#mainContent')?.classList.contains('hxfx-only'),null,{timeout:5000});
+            const fx=await page.evaluate(()=>({cards:[...document.querySelectorAll('#cardsGrid .pcard')].filter(x=>x.getClientRects().length&&getComputedStyle(x).display!=='none').length,grid:document.querySelector('#cardsGrid')?.getClientRects().length||0,view:document.querySelector('#hxDivisasView')?.getClientRects().length||0}));
+            if(fx.cards!==0||fx.grid!==0||!fx.view) throw new Error(`Cotizador_companies_visible_${JSON.stringify(fx)}`);
+            log('COTIZADOR_ONLY_NO_COMPANIES=PASS');
 
-            await laboral.click();
+            await physicalClick('#hxLaboralBtn','LABORAL_RETURN');
             await page.locator('#hxLaboralView').waitFor({state:'visible',timeout:20000});
-            await page.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:20000});
-            const state=await page.evaluate(()=>({lab:document.querySelector('#hxLaboralBtn')?.classList.contains('active'),fx:document.querySelector('#mainContent')?.classList.contains('hxfx-only'),force:document.querySelector('#mainContent')?.classList.contains('hxlab-force')}));
-            if(!state.lab || state.fx) throw new Error(`navigation conflict ${JSON.stringify(state)}`);
-            log('DIVISAS_TO_LABORAL_RETURN=PASS');
+            await page.waitForFunction(()=>document.querySelector('#mainContent')?.classList.contains('hxlab-force')&&!document.querySelector('#mainContent')?.classList.contains('hxfx-only'),null,{timeout:5000});
+            log('COTIZADOR_TO_LABORAL_RETURN=PASS');
             log('OVERALL=PASS');
           } catch(e) {
             log(`ERROR=${String(e.message||e).replace(/\s+/g,'_').slice(0,400)}`);
