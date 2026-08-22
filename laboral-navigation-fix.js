@@ -25,6 +25,10 @@
       .hxli-card-click:focus{outline:2px solid var(--accent-md);outline-offset:2px}
       #hxliBackLaboral{margin-bottom:12px}
       #hxLaboralView{contain:layout style}
+      #hxliResult .hxli-summary{display:grid!important;visibility:visible!important;opacity:1!important}
+      #hxliResult .hxli-summary-card,
+      #hxliResult .hxli-summary-card span,
+      #hxliResult .hxli-summary-card b{visibility:visible!important;opacity:1!important}
     `;
     document.head.appendChild(style);
   }
