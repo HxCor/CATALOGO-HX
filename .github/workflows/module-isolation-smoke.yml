@@ -58,6 +58,22 @@ jobs:
           const log=s=>fs.appendFileSync(process.env.RESULT_FILE,s+'\n');
           const browser=await chromium.launch({headless:true});
           const page=await browser.newPage({viewport:{width:1440,height:1000}});
+          async function physicalClick(selector,label){
+            const loc=page.locator(selector);
+            await loc.waitFor({state:'visible',timeout:30000});
+            await loc.scrollIntoViewIfNeeded();
+            await page.waitForTimeout(200);
+            const box=await loc.boundingBox();
+            if(!box) throw new Error(`${label}_no_box`);
+            const x=box.x+box.width/2,y=box.y+box.height/2;
+            const hit=await page.evaluate(({x,y,selector})=>{
+              const target=document.querySelector(selector),at=document.elementFromPoint(x,y);
+              return {same:!!target&&!!at&&(at===target||target.contains(at)),hitTag:at?.tagName||'',hitId:at?.id||'',hitClass:String(at?.className||''),targetZ:target?getComputedStyle(target).zIndex:'',hitZ:at?getComputedStyle(at).zIndex:''};
+            },{x,y,selector});
+            log(`${label}_POINTER=${hit.same?'PASS':'FAIL'}:${JSON.stringify(hit).replace(/\s+/g,'_')}`);
+            if(!hit.same) throw new Error(`${label}_blocked_${hit.hitTag}_${hit.hitId}_${hit.hitClass}`);
+            await page.mouse.click(x,y);
+          }
           try{
             await page.goto(`${process.env.SITE_URL}?module-isolation=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});
             await page.locator('#loginUser').waitFor({state:'visible',timeout:30000});
@@ -67,49 +83,31 @@ jobs:
             await page.waitForFunction(()=>document.body.classList.contains('is-admin'),null,{timeout:30000});
             log('ADMIN_LOGIN=PASS');
 
-            await page.locator('#hxDivisasBtn').waitFor({state:'visible',timeout:30000});
-            await page.locator('#hxDivisasBtn').click();
+            await physicalClick('#hxDivisasBtn','COTIZADOR');
             await page.locator('#hxDivisasView').waitFor({state:'visible',timeout:20000});
             await page.waitForFunction(()=>document.querySelector('#mainContent')?.classList.contains('hxfx-only'),null,{timeout:5000});
-            const divState=await page.evaluate(()=>({
-              cards:document.querySelectorAll('#cardsGrid .pcard').length,
-              cardsVisible:[...document.querySelectorAll('#cardsGrid .pcard')].filter(x=>getComputedStyle(x).display!=='none'&&x.getClientRects().length).length,
-              gridVisible:document.querySelector('#cardsGrid') ? getComputedStyle(document.querySelector('#cardsGrid')).display!=='none' : false,
-              divVisible:document.querySelector('#hxDivisasView')?.getClientRects().length>0
-            }));
-            if(!divState.divVisible || divState.cardsVisible!==0 || divState.gridVisible) throw new Error(`Divisas_not_isolated_${JSON.stringify(divState)}`);
+            const divState=await page.evaluate(()=>({cardsVisible:[...document.querySelectorAll('#cardsGrid .pcard')].filter(x=>getComputedStyle(x).display!=='none'&&x.getClientRects().length).length,gridVisible:document.querySelector('#cardsGrid')?getComputedStyle(document.querySelector('#cardsGrid')).display!=='none':false,divVisible:document.querySelector('#hxDivisasView')?.getClientRects().length>0}));
+            if(!divState.divVisible||divState.cardsVisible!==0||divState.gridVisible) throw new Error(`Divisas_not_isolated_${JSON.stringify(divState)}`);
             log('COTIZADOR_ONLY_NO_COMPANIES=PASS');
 
-            await page.locator('#hxLaboralBtn').click();
+            await physicalClick('#hxLaboralBtn','LABORAL');
             await page.locator('#hxLaboralView').waitFor({state:'visible',timeout:20000});
             await page.waitForFunction(()=>document.querySelector('#mainContent')?.classList.contains('hxlab-force'),null,{timeout:5000});
-            const labState=await page.evaluate(()=>({
-              cardsVisible:[...document.querySelectorAll('#cardsGrid .pcard')].filter(x=>getComputedStyle(x).display!=='none'&&x.getClientRects().length).length,
-              gridVisible:document.querySelector('#cardsGrid') ? getComputedStyle(document.querySelector('#cardsGrid')).display!=='none' : false,
-              labVisible:document.querySelector('#hxLaboralView')?.getClientRects().length>0,
-              fxMode:document.querySelector('#mainContent')?.classList.contains('hxfx-only')
-            }));
-            if(!labState.labVisible || labState.cardsVisible!==0 || labState.gridVisible || labState.fxMode) throw new Error(`Laboral_not_isolated_${JSON.stringify(labState)}`);
+            const labState=await page.evaluate(()=>({cardsVisible:[...document.querySelectorAll('#cardsGrid .pcard')].filter(x=>getComputedStyle(x).display!=='none'&&x.getClientRects().length).length,gridVisible:document.querySelector('#cardsGrid')?getComputedStyle(document.querySelector('#cardsGrid')).display!=='none':false,labVisible:document.querySelector('#hxLaboralView')?.getClientRects().length>0,fxMode:document.querySelector('#mainContent')?.classList.contains('hxfx-only')}));
+            if(!labState.labVisible||labState.cardsVisible!==0||labState.gridVisible||labState.fxMode) throw new Error(`Laboral_not_isolated_${JSON.stringify(labState)}`);
             log('LABORAL_ONLY_NO_COMPANIES=PASS');
 
             const imss=page.locator('.hxlab-status').filter({hasText:'IMSS / costo patronal'}).first();
             await imss.waitFor({state:'visible',timeout:10000});
-            await imss.click();
+            const ib=await imss.boundingBox(); if(!ib) throw new Error('IMSS_no_box');
+            await page.mouse.click(ib.x+ib.width/2,ib.y+ib.height/2);
             await page.waitForFunction(()=>document.querySelector('#mainContent')?.classList.contains('hxlab-imss-only'),null,{timeout:5000});
             await page.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:10000});
-            const imssState=await page.evaluate(()=>({
-              cardsVisible:[...document.querySelectorAll('#cardsGrid .pcard')].filter(x=>getComputedStyle(x).display!=='none'&&x.getClientRects().length).length,
-              panelVisible:document.querySelector('#hxlabImssPanel')?.getClientRects().length>0,
-              statusesVisible:[...document.querySelectorAll('#hxLaboralView > .hxlab-status-grid')].filter(x=>getComputedStyle(x).display!=='none'&&x.getClientRects().length).length,
-              back:!!document.querySelector('#hxliBackLaboral')
-            }));
-            if(!imssState.panelVisible || imssState.cardsVisible!==0 || imssState.statusesVisible!==0 || !imssState.back) throw new Error(`IMSS_not_isolated_${JSON.stringify(imssState)}`);
+            const imssState=await page.evaluate(()=>({cardsVisible:[...document.querySelectorAll('#cardsGrid .pcard')].filter(x=>getComputedStyle(x).display!=='none'&&x.getClientRects().length).length,panelVisible:document.querySelector('#hxlabImssPanel')?.getClientRects().length>0,statusesVisible:[...document.querySelectorAll('#hxLaboralView > .hxlab-status-grid')].filter(x=>getComputedStyle(x).display!=='none'&&x.getClientRects().length).length,back:!!document.querySelector('#hxliBackLaboral')}));
+            if(!imssState.panelVisible||imssState.cardsVisible!==0||imssState.statusesVisible!==0||!imssState.back) throw new Error(`IMSS_not_isolated_${JSON.stringify(imssState)}`);
             log('IMSS_ONLY_NO_COMPANIES=PASS');
 
-            const scripts=await page.evaluate(()=>({
-              divisas:[...document.scripts].some(s=>/divisas-hx-pro-fix\.js\?v=20260821-2/.test(s.src)),
-              laboral:[...document.scripts].some(s=>/laboral-navigation-fix\.js\?v=20260821-4/.test(s.src))
-            }));
+            const scripts=await page.evaluate(()=>({divisas:[...document.scripts].some(s=>/divisas-hx-pro-fix\.js\?v=20260821-3/.test(s.src)),laboral:[...document.scripts].some(s=>/laboral-navigation-fix\.js\?v=20260821-5/.test(s.src))}));
             if(!scripts.divisas||!scripts.laboral) throw new Error(`Cache_versions_${JSON.stringify(scripts)}`);
             log('LIGHTWEIGHT_NAVIGATION_VERSION=PASS');
             log('OVERALL=PASS');
