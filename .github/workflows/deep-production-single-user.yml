@@ -1,0 +1,60 @@
+name: CATALOGO-HX Deep Production Single User
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deep-production-single-user.yml'
+      - 'qa/deep-production-single-user.mjs'
+      - 'deep-production-trigger.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: catalogo-hx-deep-single-user
+  cancel-in-progress: false
+
+jobs:
+  deep-certification:
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: https://hxcor.github.io/CATALOGO-HX/
+      API_BASE: https://catalogo-hx-backend.armando-avila.workers.dev
+      AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+      AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+      USERS_TABLE_ID: tbleeFejdXclP3md1
+      QUOTES_TABLE_ID: tblqEJCKK7Ers6GWi
+      RESULT_FILE: deep-production-single-user-result.txt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run deep production certification
+        run: node qa/deep-production-single-user.mjs
+      - name: Persist result
+        if: always()
+        run: |
+          cat "$RESULT_FILE" || true
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add "$RESULT_FILE" || true
+          git commit -m "Update deep production certification result" || exit 0
+          git pull --rebase || true
+          git push
+      - name: Enforce result
+        if: always()
+        run: |
+          grep -q '^OVERALL=PASS$' "$RESULT_FILE" || exit 1
+          grep -q '^VIEWER_UI_DIVISAS=PASS$' "$RESULT_FILE" || exit 1
+          grep -q '^VIEWER_UI_IMSS=PASS$' "$RESULT_FILE" || exit 1
+          grep -q '^ADMIN_UI_DIVISAS=PASS$' "$RESULT_FILE" || exit 1
+          grep -q '^ADMIN_UI_IMSS=PASS$' "$RESULT_FILE" || exit 1
+          grep -q '^ONLY_ONE_TEST_USER_FINAL=PASS$' "$RESULT_FILE" || exit 1
+          grep -q '^FINAL_QA_ROLE_VIEWER=PASS$' "$RESULT_FILE" || exit 1
