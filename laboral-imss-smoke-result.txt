@@ -1,4 +1,13 @@
-CHECKED_AT_UTC=2026-08-21T21:33:34Z
+CHECKED_AT_UTC=2026-08-22T00:05:37Z
 TEMP_USERS=PASS
-SMOKE_STEP_ERROR=line_10
+IMSS_FRONTEND_MODULE=PASS
+AUTH=PASS
+IMSS_API=PASS
+IMSS_MATH=PASS
+CEAV_2026=PASS
+LEGAL_NOTICE=PASS
+MINIMUM_WAGE_ART36=PASS
+VIEWER_API_RESTRICTION=PASS
+UI_ERROR=locator.click: Timeout 30000ms exceeded. Call log: - waiting for locator('#hxLaboralBtn') - locator resolved to <button tabindex="0" type="button" class="side-btn" id="hxLaboralBtn" aria-hidden="false">…</button> - attempting click action - waiting for element to be visible, enabled and stable - element is visible, enabled and stable - scrolling into view if needed - done scrolling - performing click action 
+SMOKE_STEP_ERROR=line_84
 OVERALL=FAIL
