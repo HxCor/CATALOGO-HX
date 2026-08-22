@@ -4241,11 +4241,53 @@ function saveLogosExtra(obj) { localStorage.setItem(LS_LOGOS, JSON.stringify(obj
 const HX_API_BASE = "https://catalogo-hx-backend.armando-avila.workers.dev";
 
 let HX_SESSION_TOKEN = sessionStorage.getItem("hxSessionToken") || null;
+let HX_SESSION_REFRESH_TIMER = null;
+
+async function refreshHxSession() {
+  if (!HX_SESSION_TOKEN) return false;
+  try {
+    const response = await hxFetchWithTimeout(`${HX_API_BASE}/session/refresh`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${HX_SESSION_TOKEN}` },
+      cache: "no-store"
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.token) return false;
+    HX_SESSION_TOKEN = data.token;
+    sessionStorage.setItem("hxSessionToken", HX_SESSION_TOKEN);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function startHxSessionRefresh() {
+  if (HX_SESSION_REFRESH_TIMER) clearInterval(HX_SESSION_REFRESH_TIMER);
+  // Renueva una sesión válida mientras la aplicación está abierta. La sesión
+  // sigue expirando si el usuario abandona el equipo, como medida de seguridad.
+  HX_SESSION_REFRESH_TIMER = setInterval(refreshHxSession, 30 * 60 * 1000);
+}
+
+function stopHxSessionRefresh() {
+  if (HX_SESSION_REFRESH_TIMER) clearInterval(HX_SESSION_REFRESH_TIMER);
+  HX_SESSION_REFRESH_TIMER = null;
+}
 
 async function hxFetch(url, options = {}) {
   const headers = { ...(options.headers || {}) };
   if (HX_SESSION_TOKEN) headers["Authorization"] = `Bearer ${HX_SESSION_TOKEN}`;
-  return fetch(url, { ...options, headers });
+  return hxFetchWithTimeout(url, { ...options, headers });
+}
+
+async function hxFetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+  if (options.signal) return fetch(url, options);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function usuarioFromAirtableRecord(record){
@@ -4522,6 +4564,23 @@ let searchTerm      = "";
 let pendingLogoB64  = null;
 
 /* ── HELPERS ── */
+function hxEscapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[c]);
+}
+function hxSafeHttpUrl(value) {
+  try {
+    const url = new URL(String(value || ''), window.location.href);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+  } catch { return ''; }
+}
+function hxSafeImageSrc(value) {
+  const raw = String(value || '').trim();
+  if (/^data:image\/(?:png|jpe?g|gif|webp);base64,/i.test(raw)) return raw;
+  return hxSafeHttpUrl(raw);
+}
+
 function getCatChip(catNombre) {
   const cats = getCats();
   const idx  = cats.findIndex(c => c.nombre === catNombre);
@@ -4544,7 +4603,7 @@ async function doLogin() {
 
   let loginData;
   try {
-    const loginResponse = await fetch(`${HX_API_BASE}/login`, {
+    const loginResponse = await hxFetchWithTimeout(`${HX_API_BASE}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ usuario: u, password: p }),
@@ -4563,6 +4622,7 @@ async function doLogin() {
 
   HX_SESSION_TOKEN = loginData.token;
   sessionStorage.setItem("hxSessionToken", HX_SESSION_TOKEN);
+  startHxSessionRefresh();
 
   currentUser = {
     user: loginData.usuario.usuario,
@@ -4848,45 +4908,45 @@ function renderCards() {
   empty.style.display="none";
   grid.innerHTML = filtered.map((p,i)=>{
     const idx = provs.findIndex(x=>x.rfc===p.rfc&&x.nombre===p.nombre);
-    const logoSrc = getLogoForRfc(p.rfc);
+    const logoSrc = hxSafeImageSrc(getLogoForRfc(p.rfc));
     const chip = getCatChip(p.categoria);
     const icon = getCatIcon(p.categoria);
     return `
     <div class="pcard" style="animation-delay:${i*.03}s" onclick="openDetail(${idx})">
       <div class="pcard-top">
         ${logoSrc
-          ? `<div class="pcard-logo-wrap"><img src="${logoSrc}" alt="${p.nombre}" style="width:32px;height:32px;object-fit:contain;image-rendering:-webkit-optimize-contrast;"></div>`
-          : `<div class="pcard-avatar ${avClass(p.nombre)}">${getInitials(p.nombre)}</div>`}
+          ? `<div class="pcard-logo-wrap"><img src="${hxEscapeHtml(logoSrc)}" alt="${hxEscapeHtml(p.nombre)}" style="width:32px;height:32px;object-fit:contain;image-rendering:-webkit-optimize-contrast;"></div>`
+          : `<div class="pcard-avatar ${avClass(p.nombre)}">${hxEscapeHtml(getInitials(p.nombre))}</div>`}
         <div class="pcard-info">
-          <div class="pcard-name">${p.nombre}</div>
-          <div class="pcard-rfc">${p.rfc}</div>
+          <div class="pcard-name">${hxEscapeHtml(p.nombre)}</div>
+          <div class="pcard-rfc">${hxEscapeHtml(p.rfc)}</div>
         </div>
         ${p.repse?'<div class="repse-pill">REPSE</div>':''}
       </div>
       <div class="pcard-mid">
-        <span class="cat-badge ${chip}">${icon} ${p.categoria}</span>
+        <span class="cat-badge ${chip}">${hxEscapeHtml(icon)} ${hxEscapeHtml(p.categoria)}</span>
         <ul class="srv-list">
-          ${(p.servicios||[]).slice(0,3).map(s=>`<li>${s}</li>`).join('')}
+          ${(p.servicios||[]).slice(0,3).map(s=>`<li>${hxEscapeHtml(s)}</li>`).join('')}
           ${(p.servicios||[]).length>3?`<li class="srv-more">+${p.servicios.length-3} actividades más</li>`:''}
         </ul>
       </div>
-      ${(p.constanciaFiscalUrl || p.opinionCumplimientoUrl) ? `
+      ${(hxSafeHttpUrl(p.constanciaFiscalUrl) || hxSafeHttpUrl(p.opinionCumplimientoUrl)) ? `
   <div class="pcard-docs" onclick="event.stopPropagation()">
-    ${p.constanciaFiscalUrl ? `
-      <a class="doc-btn" href="${p.constanciaFiscalUrl}" target="_blank" rel="noopener">
+    ${hxSafeHttpUrl(p.constanciaFiscalUrl) ? `
+      <a class="doc-btn" href="${hxEscapeHtml(hxSafeHttpUrl(p.constanciaFiscalUrl))}" target="_blank" rel="noopener noreferrer">
         📄 Constancia Fiscal
       </a>
     ` : ''}
-    ${p.opinionCumplimientoUrl ? `
-      <a class="doc-btn" href="${p.opinionCumplimientoUrl}" target="_blank" rel="noopener">
+    ${hxSafeHttpUrl(p.opinionCumplimientoUrl) ? `
+      <a class="doc-btn" href="${hxEscapeHtml(hxSafeHttpUrl(p.opinionCumplimientoUrl))}" target="_blank" rel="noopener noreferrer">
         📄 Opinión SAT
       </a>
     ` : ''}
   </div>
 ` : ''}
       ${(p.bancos||[]).length?`<div class="pcard-footer">${p.bancos.map(b=>`
-        <div class="bank-tag"><strong>${b.nombre}</strong>
-        <span style="color:var(--ink3);font-size:10px">${b.cuenta&&b.cuenta!=='CTA'?b.cuenta.slice(-6):''}</span></div>`).join('')}</div>`:''}
+        <div class="bank-tag"><strong>${hxEscapeHtml(b.nombre)}</strong>
+        <span style="color:var(--ink3);font-size:10px">${hxEscapeHtml(b.cuenta&&b.cuenta!=='CTA'?b.cuenta.slice(-6):'')}</span></div>`).join('')}</div>`:''}
       <div class="pcard-actions ${isAdmin?'visible':''}">
         <button class="btn-edit"   onclick="event.stopPropagation();openEditForm(${idx})">✏️ Editar</button>
         <button class="btn-delete" onclick="event.stopPropagation();confirmDelete(${idx})">🗑️ Eliminar</button>
@@ -4898,10 +4958,10 @@ function renderCards() {
 /* ── DETAIL MODAL ── */
 function openDetail(idx) {
   const p = getProveedores()[idx];
-  const logoSrc = getLogoForRfc(p.rfc);
+  const logoSrc = hxSafeImageSrc(getLogoForRfc(p.rfc));
   const av = document.getElementById("dAvatar");
   if(logoSrc){
-    av.innerHTML = `<img src="${logoSrc}" style="width:100%;height:100%;object-fit:contain;padding:5px;image-rendering:-webkit-optimize-contrast;">`;
+    av.innerHTML = `<img src="${hxEscapeHtml(logoSrc)}" alt="" style="width:100%;height:100%;object-fit:contain;padding:5px;image-rendering:-webkit-optimize-contrast;">`;
     av.style.cssText = "background:#fff;border:1px solid var(--border);border-radius:13px;box-shadow:0 4px 16px rgba(0,0,0,.10);overflow:hidden;";
     av.className = "modal-avatar";
   } else {
@@ -4915,15 +4975,15 @@ function openDetail(idx) {
   const catEl = document.getElementById("dCatBadge");
   catEl.textContent = `${getCatIcon(p.categoria)} ${p.categoria}`;
   catEl.className   = "cat-badge "+getCatChip(p.categoria);
-  document.getElementById("dServices").innerHTML = (p.servicios||[]).map(s=>`<li>${s}</li>`).join('');
+  document.getElementById("dServices").innerHTML = (p.servicios||[]).map(s=>`<li>${hxEscapeHtml(s)}</li>`).join('');
   document.getElementById("dBanks").innerHTML = (p.bancos||[]).length
     ? p.bancos.map(b=>`
       <div class="bank-block">
-        <div class="bank-block-name">${b.nombre}
-          ${b.clabe?`<button class="copy-btn" onclick="copyText('${b.clabe}',this)">📋 Copiar CLABE</button>`:''}
+        <div class="bank-block-name">${hxEscapeHtml(b.nombre)}
+          ${b.clabe?`<button class="copy-btn" data-copy="${hxEscapeHtml(encodeURIComponent(b.clabe))}" onclick="copyText(decodeURIComponent(this.dataset.copy),this)">📋 Copiar CLABE</button>`:''}
         </div>
-        ${b.cuenta&&b.cuenta!=='CTA'?`<div class="bank-field"><span>Cuenta:</span> ${b.cuenta}</div>`:''}
-        ${b.clabe?`<div class="bank-field"><span>CLABE:</span> ${b.clabe}</div>`:''}
+        ${b.cuenta&&b.cuenta!=='CTA'?`<div class="bank-field"><span>Cuenta:</span> ${hxEscapeHtml(b.cuenta)}</div>`:''}
+        ${b.clabe?`<div class="bank-field"><span>CLABE:</span> ${hxEscapeHtml(b.clabe)}</div>`:''}
       </div>`).join('')
     : '<p style="color:var(--ink3);font-size:13px">Sin datos bancarios registrados.</p>';
   openOverlay('detailOverlay');
@@ -4969,9 +5029,9 @@ function renderAdminTable(){
 
 return `
     <tr>
-      <td><div class="td-name">${p.nombre}</div></td>
-      <td><span class="td-rfc">${p.rfc}</span></td>
-      <td><span class="cat-badge ${getCatChip(p.categoria)}" style="font-size:10px">${p.categoria}</span></td>
+      <td><div class="td-name">${hxEscapeHtml(p.nombre)}</div></td>
+      <td><span class="td-rfc">${hxEscapeHtml(p.rfc)}</span></td>
+      <td><span class="cat-badge ${getCatChip(p.categoria)}" style="font-size:10px">${hxEscapeHtml(p.categoria)}</span></td>
       <td>${p.repse?'<span class="repse-pill">REPSE</span>':'-'}</td>
       <td>${docsStatus}</td>
       <td><div class="td-actions">
@@ -5504,7 +5564,9 @@ function showToast(msg, type="success"){
 
   const t = document.createElement("div");
   t.className = "toast " + (type || "");
-  t.innerHTML = `<span>${type==="success" ? "✓" : "⚠"}</span> ${msg}`;
+  const icon = document.createElement("span");
+  icon.textContent = type === "success" ? "✓" : "⚠";
+  t.append(icon, document.createTextNode(` ${String(msg || "")}`));
 
   c.appendChild(t);
 

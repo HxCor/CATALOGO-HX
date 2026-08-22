@@ -170,7 +170,7 @@ try {
   [400,422].includes(badPair.status) ? pass('COTIZADOR_PAIR_GUARD') : fail('COTIZADOR_PAIR_GUARD',`http_${badPair.status}`);
 
   const lp=await request(`${API}/laboral/parameters`,{headers:auth(adminToken)}); lp.status===200 && lp.json?.ok ? pass('LABORAL_PARAMETERS') : fail('LABORAL_PARAMETERS',`http_${lp.status}`);
-  const lvp=await request(`${API}/laboral/parameters`,{headers:auth(viewerToken)}); lvp.status===403 ? pass('LABORAL_VIEWER_BLOCKED') : fail('LABORAL_VIEWER_BLOCKED',`http_${lvp.status}`);
+  const lvp=await request(`${API}/laboral/parameters`,{headers:auth(viewerToken)}); lvp.status===200&&lvp.json?.ok ? pass('LABORAL_VIEWER_ACCESS') : fail('LABORAL_VIEWER_ACCESS',`http_${lvp.status}`);
   const lb=await request(`${API}/laboral/calculate`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({monthlySalary:30000,startDate:'2024-01-01',endDate:'2026-08-21',scenario:'renuncia',unpaidSalaryDays:5})});
   lb.status===200 && lb.json?.ok && Number(lb.json?.result?.calculations?.total)>0 ? pass('LABORAL_BASE_MATH') : fail('LABORAL_BASE_MATH',`http_${lb.status}`);
   const ld=await request(`${API}/laboral/dismissal`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({monthlySalary:30000,startDate:'2024-01-01',endDate:'2026-08-21',scenario:'despido_injustificado',relationType:'indeterminado',unpaidSalaryDays:0,art49Confirmed:false})});
@@ -188,7 +188,7 @@ try {
   await imss('IMSS_KNOWN_SBC_OVERRIDE',{...baseBody,knownSbcDaily:1200},r=>r?.salary?.sbcDaily===1200 && /capturado/i.test(String(r?.salary?.sbcSource||'')));
   const badRisk=await request(`${API}/laboral/imss-cost`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({...baseBody,riskClass:'VI'})}); [400,422].includes(badRisk.status)?pass('IMSS_RISK_CLASS_GUARD'):fail('IMSS_RISK_CLASS_GUARD',`http_${badRisk.status}`);
   const badPremium=await request(`${API}/laboral/imss-cost`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({...baseBody,riskPremiumPct:150})}); [400,422].includes(badPremium.status)?pass('IMSS_RISK_RANGE_GUARD'):fail('IMSS_RISK_RANGE_GUARD',`http_${badPremium.status}`);
-  const vimss=await request(`${API}/laboral/imss-cost`,{method:'POST',headers:auth(viewerToken,{'Content-Type':'application/json'}),body:JSON.stringify(baseBody)}); vimss.status===403?pass('IMSS_VIEWER_BLOCKED'):fail('IMSS_VIEWER_BLOCKED',`http_${vimss.status}`);
+  const vimss=await request(`${API}/laboral/imss-cost`,{method:'POST',headers:auth(viewerToken,{'Content-Type':'application/json'}),body:JSON.stringify(baseBody)}); vimss.status===200&&vimss.json?.ok?pass('IMSS_VIEWER_ACCESS'):fail('IMSS_VIEWER_ACCESS',`http_${vimss.status}`);
 
   const browser=await chromium.launch({headless:true});
   try{

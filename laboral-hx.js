@@ -26,12 +26,21 @@
   const token = () => sessionStorage.getItem('hxSessionToken') || '';
 
   async function api(path, options = {}) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
     const headers = { ...(options.headers || {}), Authorization: `Bearer ${token()}` };
     if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
-    const response = await fetch(`${API}${path}`, { ...options, headers, cache: 'no-store' });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data.ok === false) throw new Error(data.error || `HTTP ${response.status}`);
-    return data;
+    try {
+      const response = await fetch(`${API}${path}`, { ...options, headers, signal: controller.signal, cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) throw new Error(data.error || `HTTP ${response.status}`);
+      return data;
+    } catch (error) {
+      if (error?.name === 'AbortError') throw new Error('El servidor tardó demasiado en responder. Intenta nuevamente.');
+      throw error;
+    } finally {
+      window.clearTimeout(timeout);
+    }
   }
 
   function addStyles() {

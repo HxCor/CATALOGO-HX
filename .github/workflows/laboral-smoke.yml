@@ -105,8 +105,9 @@ jobs:
           echo "PARAMETERS_API=PASS" >> "$RESULT_FILE"
 
           VC=$(curl -sS -o /tmp/v.json -w '%{http_code}' -H "Authorization: Bearer $VIEWER_TOKEN" "$API_BASE/laboral/parameters")
-          test "$VC" = "403"
-          echo "VIEWER_API_RESTRICTION=PASS" >> "$RESULT_FILE"
+          test "$VC" = "200"
+          jq -e '.ok == true' /tmp/v.json >/dev/null
+          echo "VIEWER_API_ACCESS=PASS" >> "$RESULT_FILE"
 
           curl -fsS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data '{"scenario":"prestaciones","startDate":"2026-01-01","endDate":"2026-12-31","monthlySalary":30000,"region":"general","aguinaldoDays":15,"vacationPremiumPct":25,"plantWorker":true}' "$API_BASE/laboral/calculate" > /tmp/calc.json
           jq -e '.ok == true and .result.calculations.aguinaldo == 15000 and .result.calculations.vacaciones == 12000 and .result.calculations.primaVacacional == 3000 and .result.calculations.total == 30000 and (.result.legalBasis|length==4)' /tmp/calc.json >/dev/null
@@ -171,7 +172,7 @@ jobs:
             await page.waitForFunction(()=>/Total base estimado/i.test(document.querySelector('#hxldResult')?.innerText||''),null,{timeout:20000}); append('DISMISSAL_CALCULATION_UI=PASS');
             await a.close();
             const v=await browser.newContext({viewport:{width:390,height:844}}), vp=await v.newPage(); await login(vp,process.env.VIEWER_USER,process.env.VIEWER_PASS);
-            if(await vp.locator('#hxLaboralBtn').isVisible().catch(()=>false)) throw new Error('Laboral visible para viewer'); append('VIEWER_UI_RESTRICTION=PASS'); await v.close();
+            if(!await vp.locator('#hxLaboralBtn').isVisible().catch(()=>false)) throw new Error('Laboral no visible para viewer'); append('VIEWER_UI_ACCESS=PASS'); await v.close();
             append('ADMIN_UI=PASS');
           } catch(e) { append(`UI_ERROR=${String(e.message||e).replace(/\s+/g,' ').slice(0,500)}`); throw e; }
           finally { await browser.close(); }

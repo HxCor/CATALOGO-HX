@@ -84,8 +84,9 @@ jobs:
 
           CODE=$(curl -sS -o /tmp/vi.json -w '%{http_code}' -X POST -H "Authorization: Bearer $VIEWER_TOKEN" -H 'Content-Type: application/json' \
             --data '{"monthlySalary":30000,"region":"general","serviceYear":1,"vacationDays":12,"aguinaldoDays":15,"vacationPremiumPct":25,"daysCotized":30.4,"riskClass":"I"}' "$API_BASE/laboral/imss-cost")
-          test "$CODE" = "403"
-          echo "VIEWER_IMSS_BLOCKED=PASS" >> "$RESULT_FILE"
+          test "$CODE" = "200"
+          jq -e '.ok == true and .result.salary.sbcDaily > 0' /tmp/vi.json >/dev/null
+          echo "VIEWER_IMSS_ACCESS=PASS" >> "$RESULT_FILE"
 
           curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" "$API_BASE/usuarios" > /tmp/au.json
           jq -e '.ok == true and (.records|length >= 10)' /tmp/au.json >/dev/null

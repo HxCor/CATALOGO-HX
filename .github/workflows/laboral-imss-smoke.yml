@@ -120,8 +120,9 @@ jobs:
           echo "MINIMUM_WAGE_ART36=PASS" >> "$RESULT_FILE"
 
           VCODE=$(curl -sS -o /tmp/viewer-imss.json -w '%{http_code}' -X POST -H "Authorization: Bearer $VIEWER_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/imss.json "$API_BASE/laboral/imss-cost")
-          test "$VCODE" = "403"
-          echo "VIEWER_API_RESTRICTION=PASS" >> "$RESULT_FILE"
+          test "$VCODE" = "200"
+          jq -e '.ok == true and .result.salary.sbcDaily > 0' /tmp/viewer-imss.json >/dev/null
+          echo "VIEWER_API_ACCESS=PASS" >> "$RESULT_FILE"
 
           cat > imss-ui-smoke.mjs <<'JS'
           import { chromium } from 'playwright';
@@ -145,9 +146,9 @@ jobs:
             if(!/SBC diario/i.test(text)||!/INFONAVIT/i.test(text)||!/Costo anual estimado/i.test(text)||!/Fundamento del cálculo/i.test(text)) throw new Error('Resultado IMSS incompleto');
             append('IMSS_CALCULATION_UI=PASS'); await a.close();
             const v=await browser.newContext({viewport:{width:390,height:844}}),vp=await v.newPage(); await login(vp,process.env.VIEWER_USER,process.env.VIEWER_PASS);
-            if(await vp.locator('#hxLaboralBtn').isVisible().catch(()=>false)) throw new Error('Laboral visible para viewer');
-            if(await vp.locator('#hxlabImssPanel').isVisible().catch(()=>false)) throw new Error('IMSS visible para viewer');
-            append('VIEWER_UI_RESTRICTION=PASS'); await v.close();
+            const vb=vp.locator('#hxLaboralBtn'); if(!await vb.isVisible().catch(()=>false)) throw new Error('Laboral no visible para viewer');
+            await vb.click(); await vp.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:15000});
+            append('VIEWER_UI_ACCESS=PASS'); await v.close();
           }catch(e){append(`UI_ERROR=${String(e.message||e).replace(/\s+/g,' ').slice(0,500)}`);throw e;}finally{await browser.close();}
           JS
           RESULT_FILE="$RESULT_FILE" SITE_URL="$SITE_URL" ADMIN_USER="$ADMIN_USER" ADMIN_PASS="$ADMIN_PASS" VIEWER_USER="$VIEWER_USER" VIEWER_PASS="$VIEWER_PASS" node imss-ui-smoke.mjs

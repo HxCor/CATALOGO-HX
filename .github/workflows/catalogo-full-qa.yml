@@ -257,7 +257,7 @@ jobs:
             fail "LABORAL_PARAMETERS" "http_$LPC"
           fi
           LVC=$(curl -sS -o /tmp/lab-viewer.json -w '%{http_code}' -H "Authorization: Bearer $VIEWER_TOKEN" "$API_BASE/laboral/parameters")
-          [ "$LVC" = "403" ] && pass "LABORAL_VIEWER_BLOCKED" || fail "LABORAL_VIEWER_BLOCKED" "http_$LVC"
+          [ "$LVC" = "200" ] && jq -e '.ok==true' /tmp/lab-viewer.json >/dev/null && pass "LABORAL_VIEWER_ACCESS" || fail "LABORAL_VIEWER_ACCESS" "http_$LVC"
 
           curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
             --data '{"scenario":"prestaciones","startDate":"2026-01-01","endDate":"2026-12-31","monthlySalary":30000,"region":"general","aguinaldoDays":15,"vacationPremiumPct":25,"plantWorker":true}' \
@@ -339,7 +339,7 @@ jobs:
           VIM=$(curl -sS -o /tmp/imss-viewer.json -w '%{http_code}' -X POST \
             -H "Authorization: Bearer $VIEWER_TOKEN" -H 'Content-Type: application/json' \
             --data-binary @/tmp/imss-normal.json "$API_BASE/laboral/imss-cost")
-          [ "$VIM" = "403" ] && pass "IMSS_VIEWER_BLOCKED" || fail "IMSS_VIEWER_BLOCKED" "http_$VIM"
+          [ "$VIM" = "200" ] && jq -e '.ok==true and .result.salary.sbcDaily>0' /tmp/imss-viewer.json >/dev/null && pass "IMSS_VIEWER_ACCESS" || fail "IMSS_VIEWER_ACCESS" "http_$VIM"
 
           cat > /tmp/fullqa-ui.mjs <<'JS'
           import { chromium } from 'playwright';
@@ -379,7 +379,7 @@ jobs:
             const v=await browser.newContext({viewport:{width:390,height:844}});
             const vp=await v.newPage();
             await login(vp,process.env.VIEWER_USER,process.env.VIEWER_PASS);
-            if(await vp.locator('#hxLaboralBtn').isVisible().catch(()=>false)) throw new Error('Laboral visible para viewer');
+            if(!await vp.locator('#hxLaboralBtn').isVisible().catch(()=>false)) throw new Error('Laboral no visible para viewer');
             append('UI_VIEWER_PERMISSION=PASS');
             await v.close();
           } catch(e) {

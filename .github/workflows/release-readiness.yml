@@ -196,7 +196,7 @@ jobs:
           curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" "$API_BASE/laboral/parameters" > /tmp/lp.json
           jq -e '.ok==true' /tmp/lp.json >/dev/null && pass LABORAL_PARAMETERS || fail LABORAL_PARAMETERS
           LVC=$(curl -sS -o /tmp/lv.json -w '%{http_code}' -H "Authorization: Bearer $VIEWER_TOKEN" "$API_BASE/laboral/parameters")
-          [ "$LVC" = 403 ] && pass LABORAL_VIEWER_BLOCKED || fail LABORAL_VIEWER_BLOCKED "http_$LVC"
+          [ "$LVC" = 200 ] && jq -e '.ok==true' /tmp/lv.json >/dev/null && pass LABORAL_VIEWER_ACCESS || fail LABORAL_VIEWER_ACCESS "http_$LVC"
           curl -fsS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data '{"monthlySalary":30000,"startDate":"2024-01-01","endDate":"2026-08-21","scenario":"voluntary_resignation","pendingSalaryDays":5}' "$API_BASE/laboral/calculate" > /tmp/lab.json
           jq -e '.ok==true and (.result.total|numbers) and .result.total>0' /tmp/lab.json >/dev/null && pass LABORAL_BASE_MATH || fail LABORAL_BASE_MATH
           curl -fsS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data '{"monthlySalary":30000,"startDate":"2024-01-01","endDate":"2026-08-21","scenario":"unjustified_dismissal","pendingSalaryDays":0,"includeTwentyDaysPerYear":false}' "$API_BASE/laboral/dismissal" > /tmp/dis.json
@@ -217,7 +217,7 @@ jobs:
           RPC=$(curl -sS -o /tmp/badrp.json -w '%{http_code}' -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data '{"monthlySalary":30000,"region":"general","serviceYear":1,"vacationDays":12,"aguinaldoDays":15,"vacationPremiumPct":25,"daysCotized":30.4,"riskClass":"I","riskPremiumPct":150}' "$API_BASE/laboral/imss-cost")
           [[ "$RPC" = 400 || "$RPC" = 422 ]] && pass IMSS_RISK_RANGE_GUARD || fail IMSS_RISK_RANGE_GUARD "http_$RPC"
           IVC=$(curl -sS -o /tmp/vimss.json -w '%{http_code}' -X POST -H "Authorization: Bearer $VIEWER_TOKEN" -H 'Content-Type: application/json' --data '{"monthlySalary":30000,"region":"general","serviceYear":1,"vacationDays":12,"aguinaldoDays":15,"vacationPremiumPct":25,"daysCotized":30.4,"riskClass":"I"}' "$API_BASE/laboral/imss-cost")
-          [ "$IVC" = 403 ] && pass IMSS_VIEWER_BLOCKED || fail IMSS_VIEWER_BLOCKED "http_$IVC"
+          [ "$IVC" = 200 ] && jq -e '.ok==true and .result.salary.sbcDaily>0' /tmp/vimss.json >/dev/null && pass IMSS_VIEWER_ACCESS || fail IMSS_VIEWER_ACCESS "http_$IVC"
 
           echo "API_FAILS=$FAILS" >> "$RESULT_FILE"
           echo "DATA_WARNINGS=$WARNS" >> "$RESULT_FILE"

@@ -1,7 +1,12 @@
 name = "catalogo-hx-backend"
 main = "worker/index-laboral-imss.js"
-compatibility_date = "2026-08-19"
+compatibility_date = "2026-08-22"
+compatibility_flags = ["nodejs_compat"]
 workers_dev = true
+
+[observability]
+enabled = true
+head_sampling_rate = 0.1
 
 [vars]
 AIRTABLE_BASE_ID = "appVZGkndj6o8CyV0"
