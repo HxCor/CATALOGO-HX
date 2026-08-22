@@ -31,16 +31,12 @@
     const laboralBtn = document.getElementById('hxLaboralBtn');
     const divisasBtn = document.getElementById('hxDivisasBtn');
     const laboralView = document.getElementById('hxLaboralView');
-    const divisasView = document.getElementById('hxDivisasView');
     if (!main || !laboralBtn || !laboralView) return false;
 
     divisasBtn?.classList.remove('active');
-    if (divisasView) divisasView.style.setProperty('display', 'none', 'important');
     main.classList.remove('hxfx-only');
     main.classList.add('hxlab-force');
     laboralBtn.classList.add('active');
-    laboralView.style.setProperty('display', 'block', 'important');
-    laboralView.style.setProperty('visibility', 'visible', 'important');
     laboralView.removeAttribute('aria-hidden');
     return true;
   }
@@ -109,13 +105,8 @@
       if (side && side.id !== 'hxLaboralBtn') releaseLaboralForce();
     }, true);
 
-    const observer = new MutationObserver(() => {
-      enhanceImssCard();
-      const btn = document.getElementById('hxLaboralBtn');
-      const view = document.getElementById('hxLaboralView');
-      if (btn?.classList.contains('active') && view && isAdmin()) forceLaboralVisible();
-    });
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+    const observer = new MutationObserver(() => enhanceImssCard());
+    observer.observe(document.body, { childList: true, subtree: true });
     enhanceImssCard();
   }
 
