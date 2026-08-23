@@ -7,7 +7,9 @@
   <!-- Catálogo 2026: bootstrap seguro -->
   <style>
     html,body{margin:0;min-height:100%;background:#1a1917;font-family:Arial,sans-serif}
-    #boot{min-height:100vh;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;letter-spacing:.3px}
+    #boot{min-height:100vh;display:flex;align-items:center;justify-content:center;gap:12px;color:#fff;font-size:14px;letter-spacing:.3px}
+    #boot::before{content:"";width:18px;height:18px;border:2px solid rgba(255,255,255,.25);border-top-color:#2f9b68;border-radius:50%;animation:hxspin .8s linear infinite}
+    @keyframes hxspin{to{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
@@ -15,23 +17,23 @@
   <script>
     (async () => {
       try {
-        const response = await fetch('app.html?v=security-20260821-module-isolation-2', { cache: 'no-store' });
+        const response = await fetch('app.html?v=performance-20260823-1', { cache: 'default' });
         if (!response.ok) throw new Error(`No se pudo cargar la aplicación (${response.status})`);
 
         let html = await response.text();
         const mainMarker = '<scr' + 'ipt>\nconst LOGOS';
         const preTag = '<scr' + 'ipt src="security-pre.js?v=20260820"></scr' + 'ipt>\n';
-        const postTag = '<scr' + 'ipt src="security-post.js?v=20260820"></scr' + 'ipt>\n';
-        const mailTag = '<scr' + 'ipt src="mail-provider.js?v=20260820"></scr' + 'ipt>\n';
-        const divisasTag = '<scr' + 'ipt src="divisas-hx-pro.js?v=20260822-all-users-1"></scr' + 'ipt>\n';
-        const divisasFixTag = '<scr' + 'ipt src="divisas-hx-pro-fix.js?v=20260822-navigation-1"></scr' + 'ipt>\n';
-        const divisasRefreshTag = '<scr' + 'ipt src="divisas-refresh-fix.js?v=20260820-1"></scr' + 'ipt>\n';
-        const divisasDocsTag = '<scr' + 'ipt src="divisas-document-actions.js?v=20260822-freeze-1"></scr' + 'ipt>\n';
-        const laboralTag = '<scr' + 'ipt src="laboral-hx.js?v=20260822-all-users-1"></scr' + 'ipt>\n';
-        const laboralAccessTag = '<scr' + 'ipt src="laboral-access.js?v=20260822-all-users-1"></scr' + 'ipt>\n';
-        const laboralDismissalTag = '<scr' + 'ipt src="laboral-despido.js?v=20260821-2"></scr' + 'ipt>\n';
-        const laboralImssTag = '<scr' + 'ipt src="laboral-imss.js?v=20260822-all-users-1"></scr' + 'ipt>\n';
-        const laboralNavigationFixTag = '<scr' + 'ipt src="laboral-navigation-fix.js?v=20260822-all-users-1"></scr' + 'ipt>\n';
+        const postTag = '<scr' + 'ipt defer src="security-post.js?v=20260820"></scr' + 'ipt>\n';
+        const mailTag = '<scr' + 'ipt defer src="mail-provider.js?v=20260820"></scr' + 'ipt>\n';
+        const divisasTag = '<scr' + 'ipt defer src="divisas-hx-pro.js?v=20260822-all-users-1"></scr' + 'ipt>\n';
+        const divisasFixTag = '<scr' + 'ipt defer src="divisas-hx-pro-fix.js?v=20260822-navigation-1"></scr' + 'ipt>\n';
+        const divisasRefreshTag = '<scr' + 'ipt defer src="divisas-refresh-fix.js?v=20260820-1"></scr' + 'ipt>\n';
+        const divisasDocsTag = '<scr' + 'ipt defer src="divisas-document-actions.js?v=20260822-freeze-1"></scr' + 'ipt>\n';
+        const laboralTag = '<scr' + 'ipt defer src="laboral-hx.js?v=20260822-all-users-1"></scr' + 'ipt>\n';
+        const laboralAccessTag = '<scr' + 'ipt defer src="laboral-access.js?v=20260822-all-users-1"></scr' + 'ipt>\n';
+        const laboralDismissalTag = '<scr' + 'ipt defer src="laboral-despido.js?v=20260821-2"></scr' + 'ipt>\n';
+        const laboralImssTag = '<scr' + 'ipt defer src="laboral-imss.js?v=20260822-all-users-1"></scr' + 'ipt>\n';
+        const laboralNavigationFixTag = '<scr' + 'ipt defer src="laboral-navigation-fix.js?v=20260822-all-users-1"></scr' + 'ipt>\n';
 
         if (!html.includes(mainMarker)) {
           throw new Error('No se encontró el punto de inserción de seguridad.');
