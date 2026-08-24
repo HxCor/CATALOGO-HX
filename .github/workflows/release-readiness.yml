@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/release-readiness.yml'
+      - 'index.html'
+      - 'card-bank-alignment.js'
   workflow_dispatch:
 
 permissions:
@@ -266,6 +268,43 @@ jobs:
             await login(p,process.env.AU,process.env.AP);
             await p.locator('#adminAddBtn').waitFor({state:'visible',timeout:15000});
             append('UI_ADMIN_LOGIN_AND_CONTROLS=PASS');
+            await p.waitForFunction(()=>document.querySelectorAll('#cardsGrid .pcard').length>=40 && document.querySelector('#cardsGrid')?.dataset.hxBankAlignment==='ready',null,{timeout:30000});
+            const existingBankRows=await p.evaluate(()=>{
+              const cards=[...document.querySelectorAll('#cardsGrid > .pcard')];
+              const rows=new Map();
+              for(const card of cards){
+                const footer=card.querySelector('.pcard-footer'); if(!footer) continue;
+                const cr=card.getBoundingClientRect(),key=Math.round(cr.top/4)*4;
+                const row=rows.get(key)||[]; row.push(footer.getBoundingClientRect().top-cr.top); rows.set(key,row);
+              }
+              return [...rows.values()].filter(row=>row.length>1).map(row=>Math.max(...row)-Math.min(...row));
+            });
+            if(!existingBankRows.length || Math.max(...existingBankRows)>1) throw new Error(`Franjas bancarias desalineadas: ${JSON.stringify(existingBankRows)}`);
+            append('UI_BANK_STRIPS_ALIGNED=PASS');
+
+            await p.evaluate(()=>{
+              const grid=document.querySelector('#cardsGrid'),cards=[...grid.querySelectorAll(':scope > .pcard')].filter(card=>card.querySelector('.pcard-footer'));
+              const fillerCount=(3-(grid.children.length%3))%3;
+              const addClone=(source,marker,services,extraBank)=>{
+                const clone=source.cloneNode(true); clone.removeAttribute('onclick'); clone.style.animation='none'; clone.querySelectorAll('.hx-bank-align-spacer').forEach(el=>el.remove());
+                clone.dataset.qaBankCard=marker; const list=clone.querySelector('.srv-list'); list.innerHTML=services.map(text=>`<li>${text}</li>`).join('');
+                if(extraBank){const tag=clone.querySelector('.bank-tag').cloneNode(true); tag.querySelector('strong').textContent='BANCO NUEVO'; tag.querySelector('span').textContent='000002'; clone.querySelector('.pcard-footer').appendChild(tag);}
+                grid.appendChild(clone);
+              };
+              for(let i=0;i<fillerCount;i++) addClone(cards[i%cards.length],`filler-${i}`,['Servicio auxiliar'],false);
+              addClone(cards[0],'test-1',['Servicio nuevo'],true);
+              addClone(cards[1%cards.length],'test-2',['Servicio uno','Servicio dos','Servicio tres','+2 actividades más'],false);
+              addClone(cards[2%cards.length],'test-3',['Servicio uno','Servicio dos'],false);
+            });
+            await p.waitForTimeout(500);
+            const futureAlignment=await p.evaluate(()=>{
+              const cards=[...document.querySelectorAll('#cardsGrid > .pcard[data-qa-bank-card^="test-"]')];
+              const tops=cards.map(card=>card.querySelector('.pcard-footer').getBoundingClientRect().top-card.getBoundingClientRect().top);
+              return {count:cards.length,spread:Math.max(...tops)-Math.min(...tops),newAccountTags:cards[0]?.querySelectorAll('.bank-tag').length||0};
+            });
+            if(futureAlignment.count!==3 || futureAlignment.spread>1 || futureAlignment.newAccountTags<2) throw new Error(`Alineación futura no aplicada: ${JSON.stringify(futureAlignment)}`);
+            append('UI_NEW_COMPANY_ACCOUNT_ALIGNMENT=PASS');
+            await p.evaluate(()=>document.querySelectorAll('#cardsGrid > .pcard[data-qa-bank-card]').forEach(card=>card.remove()));
             await p.locator('button[onclick="openAdminPanel()"]').click();
             await p.locator('#adminOverlay').waitFor({state:'visible',timeout:10000});
             await p.getByRole('button',{name:'Usuarios',exact:true}).click();
