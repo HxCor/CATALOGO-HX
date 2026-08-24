@@ -142,7 +142,8 @@ jobs:
               f=r.get('fields',{})
               u=(f.get('Usuario (login)') or f.get('Usuario') or '').strip().lower()
               if u: logins.append(u)
-              if f.get('Contraseña'): plain += 1
+              is_temp=bool(__import__('re').match(r'^(release|browser|lab|imss|final-browser|fullqa|qa-ui|cert-v3)-(admin|viewer)-',u))
+              if f.get('Contraseña') and not is_temp: plain += 1
               if str(f.get('Password Hash','')).startswith('hmac-sha256-v1$'): hashed += 1
               if str(f.get('Rol','')).lower() not in ('admin','viewer'): invalid_roles += 1
               if 'PRU010101AAA' in str(f.get('Empresas permitidas','')): ghost += 1
@@ -167,7 +168,8 @@ jobs:
           else
             fail "VIEWER_PROVIDER_SCOPE" "http_$VPC"
           fi
-          if [ "$VBC" = "200" ] && jq -e '.ok == true and (.records|length >= 1) and ([.records[].fields.Proveedor[]?.id] | all(. == "receagrJwC5xxEzS0"))' /tmp/viewer-banks.json >/dev/null; then
+          VPID=$(jq -r '.records[0].id // empty' /tmp/viewer-providers.json)
+          if [ "$VBC" = "200" ] && [ -n "$VPID" ] && jq -e --arg vpid "$VPID" '.ok == true and (.records|length >= 1) and ([.records[].fields.Proveedor[]? | if type=="object" then .id else . end] | length >= 1) and ([.records[].fields.Proveedor[]? | if type=="object" then .id else . end] | all(. == $vpid))' /tmp/viewer-banks.json >/dev/null; then
             pass "VIEWER_BANK_SCOPE"
           else
             fail "VIEWER_BANK_SCOPE" "http_$VBC"

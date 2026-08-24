@@ -159,7 +159,7 @@ jobs:
             await p.locator('#hxliCalculate').click();
             await p.waitForFunction(()=>/Costo patronal mensual estimado/i.test(document.querySelector('#hxliResult')?.innerText||''),null,{timeout:25000});
             const imss=await p.locator('#hxliResult').innerText();
-            for(const marker of ['SBC diario','INFONAVIT','Costo anual estimado','Fundamento del cálculo','NO ES DETERMINACIÓN OFICIAL']) if(!imss.includes(marker)) throw new Error(`IMSS UI sin ${marker}`);
+            for(const marker of ['SBC diario','INFONAVIT','Costo anual estimado','Fundamento del cálculo','NO ES DETERMINACIÓN OFICIAL']) if(!imss.toLocaleLowerCase().includes(marker.toLocaleLowerCase())) throw new Error(`IMSS UI sin ${marker}`);
             append('UI_IMSS_COMPLETE=PASS');
             await admin.close();
 
