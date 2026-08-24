@@ -1,0 +1,33 @@
+name: CATALOGO-HX Daily Product Audit
+
+on:
+  schedule:
+    # 08:00 America/Mexico_City (UTC-6)
+    - cron: '0 14 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: catalogo-hx-daily-product-audit
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Audit source and live products
+        run: node qa/product-audit.mjs --live | tee daily-product-audit-report.json
+      - name: Publish audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalogo-hx-daily-product-audit
+          path: daily-product-audit-report.json
+          retention-days: 30

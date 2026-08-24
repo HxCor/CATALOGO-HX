@@ -6,8 +6,6 @@ on:
     paths:
       - '.github/workflows/final-certification-v3.yml'
       - 'certification-trigger-v3.txt'
-  issues:
-    types: [opened]
   workflow_dispatch:
 
 permissions:
@@ -48,5 +46,7 @@ jobs:
         run: |
           grep -q '^BROWSER_CERTIFICATION=PASS$' "$RESULT_FILE" || exit 1
           grep -q '^TEMP_USERS_CLEANUP=PASS$' "$RESULT_FILE" || exit 1
-          grep -q '^REAL_USERS_FINAL_COUNT_8=PASS$' "$RESULT_FILE" || exit 1
+          grep -q '^REAL_USERS_BASELINE_RESTORED=PASS "$RESULT_FILE" || exit 1
+          grep -q '^OVERALL=PASS$' "$RESULT_FILE" || exit 1
+ "$RESULT_FILE" || exit 1
           grep -q '^OVERALL=PASS$' "$RESULT_FILE" || exit 1

@@ -17,6 +17,9 @@
   function isProtectedAdmin(user) {
     return String(user?.user || '').trim().toLowerCase() === 'admin';
   }
+  const esc = value => typeof hxEscapeHtml === 'function'
+    ? hxEscapeHtml(value)
+    : String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   // Refuerzo de persistencia: nunca guardar passwords en localStorage.
   window.saveUsers = function(arr) {
@@ -40,6 +43,7 @@
 
   // Logout completo: elimina también el token de sesión.
   window.doLogout = function() {
+    if (typeof stopHxSessionRefresh === 'function') stopHxSessionRefresh();
     currentUser = null;
     HX_SESSION_TOKEN = null;
     sessionStorage.removeItem('hxSessionToken');
@@ -85,10 +89,10 @@
 
       return `
         <div class="user-row">
-          <div class="user-row-avatar ${u.rol === 'admin' ? 'avatar-admin' : 'avatar-viewer'}">${initials}</div>
+          <div class="user-row-avatar ${u.rol === 'admin' ? 'avatar-admin' : 'avatar-viewer'}">${esc(initials)}</div>
           <div>
-            <div class="user-row-name">${u.nombre || ''}</div>
-            <div class="user-row-user">@${u.user || ''} · ${u.rol === 'admin' ? 'Administrador' : 'Consultor'}</div>
+            <div class="user-row-name">${esc(u.nombre || '')}</div>
+            <div class="user-row-user">@${esc(u.user || '')} · ${u.rol === 'admin' ? 'Administrador' : 'Consultor'}</div>
           </div>
           <div style="margin-left:auto;display:flex;gap:6px">
             <span class="badge-role ${u.rol === 'admin' ? 'badge-admin' : 'badge-viewer'}">${u.rol === 'admin' ? 'Admin' : 'Viewer'}</span>
@@ -131,8 +135,8 @@
       }).length;
       const active = currentCat === c.nombre ? 'active' : '';
       const safeid = encodeURIComponent(c.nombre);
-      return `<button class="side-btn ${active}" data-cat="${c.nombre}" onclick="filterCat('${c.nombre}',this)">
-        <span class="side-icon">${c.icono}</span> ${c.nombre}
+      return `<button class="side-btn ${active}" data-cat="${esc(c.nombre)}" onclick="filterCat(decodeURIComponent('${safeid}'),this)">
+        <span class="side-icon">${esc(c.icono)}</span> ${esc(c.nombre)}
         <span class="side-count" id="sc-${safeid}">${count}</span>
       </button>`;
     }).join('');

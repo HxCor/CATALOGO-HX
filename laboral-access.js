@@ -29,11 +29,19 @@
   const observer = new MutationObserver(syncLaboralAccess);
 
   function init() {
-    syncLaboralAccess();
+    const ready = () => {
+      syncLaboralAccess();
+      return Boolean(document.getElementById('hxLaboralBtn') && isAuthenticated());
+    };
+    if (ready()) return;
     observer.observe(document.body, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });
     let attempts = 0;
     const timer = setInterval(() => {
-      syncLaboralAccess();
+      if (ready()) {
+        observer.disconnect();
+        clearInterval(timer);
+        return;
+      }
       attempts += 1;
       if (attempts >= 80) clearInterval(timer);
     }, 250);

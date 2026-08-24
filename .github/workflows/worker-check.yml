@@ -44,4 +44,4 @@ jobs:
           grep -q "path === '/divisas/current'" worker/index-divisas.js
           grep -q "path === '/divisas/quotes'" worker/index-divisas.js
           grep -q "path === '/divisas/quotes/status'" worker/index-docs.js
-          grep -Eq 'main = "worker/index-(divisas|docs)\.js"' wrangler.toml
+          grep -Eq 'main = "worker/index-(divisas|docs|laboral-imss)\.js"' wrangler.toml

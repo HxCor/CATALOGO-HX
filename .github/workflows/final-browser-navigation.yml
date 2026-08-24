@@ -35,6 +35,9 @@ jobs:
           set -Eeuo pipefail
           : > "$RESULT_FILE"
           echo "CHECKED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT_FILE"
+          curl -fsS -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID?pageSize=100" > /tmp/baseline-users.json
+          BASE_COUNT=$(jq '.records|length' /tmp/baseline-users.json)
+          echo "BASELINE_USERS=$BASE_COUNT" >> "$RESULT_FILE"
           SUFFIX="$(date +%s)-$RANDOM"
           AU="final-browser-admin-$SUFFIX"; AP="$(openssl rand -hex 18)"
           VU="final-browser-viewer-$SUFFIX"; VP="$(openssl rand -hex 18)"
@@ -45,7 +48,7 @@ jobs:
           curl -fsS -X POST -H "Authorization: Bearer $AIRTABLE_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/users.json "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$USERS_TABLE_ID" > /tmp/created.json
           AID=$(jq -r '.records[0].id // empty' /tmp/created.json); VID=$(jq -r '.records[1].id // empty' /tmp/created.json)
           test -n "$AID" && test -n "$VID"
-          { echo "au=$AU"; echo "ap=$AP"; echo "vu=$VU"; echo "vp=$VP"; echo "aid=$AID"; echo "vid=$VID"; } >> "$GITHUB_OUTPUT"
+          { echo "au=$AU"; echo "ap=$AP"; echo "vu=$VU"; echo "vp=$VP"; echo "aid=$AID"; echo "vid=$VID"; echo "base_count=$BASE_COUNT"; } >> "$GITHUB_OUTPUT"
           echo 'TEMP_USERS_CREATED=PASS' >> "$RESULT_FILE"
       - name: Run production browser certification
         id: browser
@@ -54,6 +57,7 @@ jobs:
           AP: ${{ steps.users.outputs.ap }}
           VU: ${{ steps.users.outputs.vu }}
           VP: ${{ steps.users.outputs.vp }}
+          BASE_COUNT: ${{ steps.users.outputs.base_count }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -95,7 +99,7 @@ jobs:
             await p.locator('button[onclick="openAdminPanel()"]').click();
             await p.locator('#adminOverlay').waitFor({state:'visible',timeout:10000});
             await p.getByRole('button',{name:'Usuarios',exact:true}).click();
-            await p.waitForFunction(()=>document.querySelectorAll('#usersList .user-row').length>=10,null,{timeout:20000});
+            await p.waitForFunction(expected=>document.querySelectorAll('#usersList .user-row').length>=expected,Number(process.env.BASE_COUNT)+2,{timeout:20000});
             append('ADMIN_USERS_UI=PASS');
             await p.locator('#adminOverlay button[onclick*="closeOverlay"]').first().click();
             await p.locator('#adminOverlay').waitFor({state:'hidden',timeout:10000});
@@ -123,7 +127,11 @@ jobs:
               const cards=await v.locator('#cardsGrid .pcard').count(); const text=await v.locator('#cardsGrid').innerText();
               if(cards!==1||!/GHR Constructor/i.test(text)) throw new Error(`${label} provider scope`);
               if(await v.locator('#adminSideSection').isVisible().catch(()=>false)) throw new Error(`${label} admin section visible`);
-              if(await v.locator('#hxLaboralBtn').isVisible().catch(()=>false)) throw new Error(`${label} laboral visible`);
+              if(!await v.locator('#hxDivisasBtn').isVisible().catch(()=>false)) throw new Error(`${label} divisas no visible`);
+              const laboral=v.locator('#hxLaboralBtn');
+              if(!await laboral.isVisible().catch(()=>false)) throw new Error(`${label} laboral no visible`);
+              await laboral.click();
+              await v.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:20000});
               if(viewport.width<600){ const ov=await v.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth); if(ov>8) throw new Error(`${label} overflow ${ov}`); }
               append(`${label}_PERMISSIONS_LAYOUT=PASS`); await c.close();
             }
@@ -138,6 +146,7 @@ jobs:
         env:
           AID: ${{ steps.users.outputs.aid }}
           VID: ${{ steps.users.outputs.vid }}
+          BASE_COUNT: ${{ steps.users.outputs.base_count }}
         shell: bash
         run: |
           set +e
@@ -147,7 +156,7 @@ jobs:
           LEFT=$(jq '[.records[].fields.Usuario // "" | select(startswith("final-browser-admin-") or startswith("final-browser-viewer-"))] | length' /tmp/final-users.json)
           COUNT=$(jq '.records|length' /tmp/final-users.json)
           [ "$LEFT" = 0 ] && echo 'TEMP_USERS_CLEANUP=PASS' >> "$RESULT_FILE" || echo "TEMP_USERS_CLEANUP=FAIL:left_$LEFT" >> "$RESULT_FILE"
-          [ "$COUNT" = 8 ] && echo 'REAL_USERS_FINAL_COUNT_8=PASS' >> "$RESULT_FILE" || echo "REAL_USERS_FINAL_COUNT_8=FAIL:count_$COUNT" >> "$RESULT_FILE"
+          [ "$COUNT" = "$BASE_COUNT" ] && echo 'REAL_USERS_BASELINE_RESTORED=PASS' >> "$RESULT_FILE" || echo "REAL_USERS_BASELINE_RESTORED=FAIL:baseline_${BASE_COUNT}_count_$COUNT" >> "$RESULT_FILE"
       - name: Persist result
         if: always()
         run: |

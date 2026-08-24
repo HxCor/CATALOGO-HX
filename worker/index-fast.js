@@ -213,8 +213,12 @@ async function verifyPassword(env, password, stored) {
   }
 }
 
-function safePlaintextCompare(a, b) {
-  return timingSafeEqual(encoder.encode(String(a || "")), encoder.encode(String(b || "")));
+async function safePlaintextCompare(a, b) {
+  const [left, right] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(String(a || ""))),
+    crypto.subtle.digest("SHA-256", encoder.encode(String(b || ""))),
+  ]);
+  return timingSafeEqual(new Uint8Array(left), new Uint8Array(right));
 }
 
 async function handleLogin(request, env) {
@@ -244,7 +248,7 @@ async function handleLogin(request, env) {
     valid = verification.valid;
     needsRehash = verification.needsRehash;
   } else if (legacyPassword) {
-    valid = safePlaintextCompare(password, legacyPassword);
+    valid = await safePlaintextCompare(password, legacyPassword);
   }
 
   if (!valid) return fail(request, 401, "Credenciales inválidas");
@@ -275,6 +279,37 @@ async function handleLogin(request, env) {
 
   const token = await issueToken(env, loginUser);
   return json(request, { ok: true, token, usuario: loginUser, migration });
+}
+
+async function handleSessionRefresh(request, env) {
+  if (request.method !== "POST") return fail(request, 405, "Método no permitido");
+  const auth = await requireSession(request, env);
+  if (auth.response) return auth.response;
+
+  const session = auth.session;
+  const table = envTable(env, "AIRTABLE_TABLE_USUARIOS", "USUARIOS");
+  let record;
+  try {
+    record = await airtableRequest(env, table, { recordId: session.sub });
+  } catch {
+    return fail(request, 401, "La sesión ya no corresponde a un usuario activo");
+  }
+
+  const fields = record?.fields || {};
+  const usuario = fields["Usuario"] || fields["Usuario (login)"] || "";
+  if (!usuario || normalizeUsername(usuario) !== normalizeUsername(session.user)) {
+    return fail(request, 401, "La sesión ya no corresponde a un usuario activo");
+  }
+
+  const loginUser = {
+    id: record.id,
+    usuario,
+    nombre: fields["Nombre completo"] || "",
+    rol: fields["Rol"] || "viewer",
+    empresasPermitidas: fields["Empresas permitidas"] || "",
+  };
+  const token = await issueToken(env, loginUser);
+  return json(request, { ok: true, token, expiresIn: SESSION_TTL_SECONDS });
 }
 
 async function prepareUserFieldsForWrite(env, fields, isCreate) {
@@ -399,6 +434,7 @@ export default {
     try {
       if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request) });
       if (!env.AIRTABLE_TOKEN || !env.AIRTABLE_BASE_ID) return fail(request, 500, "Backend no configurado");
+      if (!env.PASSWORD_PEPPER || !env.SESSION_SECRET) return fail(request, 500, "Seguridad del backend no configurada");
 
       const path = new URL(request.url).pathname.replace(/\/+$/, "") || "/";
       if (path === "/") {
@@ -410,6 +446,7 @@ export default {
         });
       }
       if (path === "/login" && request.method === "POST") return await handleLogin(request, env);
+      if (path === "/session/refresh") return await handleSessionRefresh(request, env);
       if (path === "/usuarios") return await handleUsers(request, env);
       if (path === "/proveedores") return await handleGenericCrud(request, env, "proveedores");
       if (path === "/bancos") return await handleGenericCrud(request, env, "bancos");

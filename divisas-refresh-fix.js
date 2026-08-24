@@ -26,7 +26,7 @@
 
   function enhanceRefreshButton() {
     const btn = document.getElementById('hxfxRefresh');
-    if (!btn || btn.dataset.hxRefreshEnhanced === '1' || typeof btn.onclick !== 'function') return;
+    if (!btn || btn.dataset.hxRefreshEnhanced === '1' || typeof btn.onclick !== 'function') return false;
 
     btn.dataset.hxRefreshEnhanced = '1';
     const original = btn.onclick;
@@ -66,11 +66,14 @@
         }, 1800);
       }
     };
+    return true;
   }
 
   function init() {
-    enhanceRefreshButton();
-    const observer = new MutationObserver(enhanceRefreshButton);
+    if (enhanceRefreshButton()) return;
+    const observer = new MutationObserver(() => {
+      if (enhanceRefreshButton()) observer.disconnect();
+    });
     observer.observe(document.body, { childList: true, subtree: true });
   }
 

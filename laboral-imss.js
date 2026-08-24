@@ -16,12 +16,21 @@
   }
 
   async function api(path, options = {}) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
     const headers = { ...(options.headers || {}), Authorization: `Bearer ${token()}` };
     if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
-    const response = await fetch(`${API}${path}`, { ...options, headers, cache: 'no-store' });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data.ok === false) throw new Error(data.error || `HTTP ${response.status}`);
-    return data;
+    try {
+      const response = await fetch(`${API}${path}`, { ...options, headers, signal: controller.signal, cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) throw new Error(data.error || `HTTP ${response.status}`);
+      return data;
+    } catch (error) {
+      if (error?.name === 'AbortError') throw new Error('El servidor tardó demasiado en responder. Intenta nuevamente.');
+      throw error;
+    } finally {
+      window.clearTimeout(timeout);
+    }
   }
 
   function addStyles() {
@@ -165,14 +174,22 @@
   }
 
   function scan() {
-    if (!isAuthenticated()) return;
+    if (!isAuthenticated()) return false;
     const view = document.getElementById('hxLaboralView');
-    if (view) injectPanel(view);
+    if (!view) return false;
+    injectPanel(view);
+    return Boolean(document.getElementById('hxlabImssPanel'));
   }
 
   function init() {
-    scan();
-    const observer = new MutationObserver(scan);
+    let observer;
+    const run = () => {
+      if (!scan()) return;
+      observer?.disconnect();
+    };
+    run();
+    observer = new MutationObserver(run);
+    if (document.getElementById('hxlabImssPanel')) return;
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
   }
 

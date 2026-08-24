@@ -9,6 +9,7 @@ const lines=[`CHECKED_AT_UTC=${new Date().toISOString().replace('.000','')}`];
 const tempIds=[];
 let browser=null;
 let overallPass=false;
+let baselineUserCount=null;
 const append=s=>{lines.push(s);fs.writeFileSync(RESULT,lines.join('\n')+'\n');};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
@@ -45,6 +46,11 @@ try{
   const {chromium}=await import('playwright'); append('PLAYWRIGHT_MODULE=PASS');
   browser=await chromium.launch({headless:true}); append('CHROMIUM_LAUNCH=PASS');
 
+  const baseline=await at(`https://api.airtable.com/v0/${BASE}/${USERS}?pageSize=100`);
+  if(!baseline.ok) throw new Error(`baseline_users_http_${baseline.status}`);
+  baselineUserCount=(baseline.json?.records||[]).length;
+  append(`BASELINE_USERS=${baselineUserCount}`);
+
   const suffix=`${Date.now()}-${Math.floor(Math.random()*1e6)}`;
   const au=`cert-v3-admin-${suffix}`,ap=`A${crypto.randomUUID()}z9!`,vu=`cert-v3-viewer-${suffix}`,vp=`V${crypto.randomUUID()}x8!`;
   const cr=await at(`https://api.airtable.com/v0/${BASE}/${USERS}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({records:[
@@ -58,7 +64,7 @@ try{
   await login(p,au,ap); append('ADMIN_LOGIN_UI=PASS');
   await p.locator('button[onclick="openAdminPanel()"]').click(); await p.locator('#adminOverlay').waitFor({state:'visible',timeout:10000});
   await p.getByRole('button',{name:'Usuarios',exact:true}).click();
-  await p.waitForFunction(()=>document.querySelectorAll('#usersList .user-row').length>=10,null,{timeout:20000});
+  await p.waitForFunction(expected=>document.querySelectorAll('#usersList .user-row').length>=expected,baselineUserCount+2,{timeout:20000});
   const usersText=await p.locator('#usersList').innerText(); if(/Password Hash|Contraseña|TOTP/i.test(usersText)) throw new Error('sensitive_user_fields_visible'); append('ADMIN_USERS_UI=PASS');
   await p.locator('#adminOverlay button[onclick*="closeOverlay"]').first().click(); await p.locator('#adminOverlay').waitFor({state:'hidden',timeout:10000}); append('ADMIN_OVERLAY_CLOSE=PASS');
 
@@ -80,7 +86,11 @@ try{
     const cards=await v.locator('#cardsGrid .pcard').count(),text=await v.locator('#cardsGrid').innerText();
     if(cards!==1||!/GHR Constructor/i.test(text)) throw new Error(`${label}_provider_scope`);
     if(await v.locator('#adminSideSection').isVisible().catch(()=>false)) throw new Error(`${label}_admin_visible`);
-    if(await v.locator('#hxLaboralBtn').isVisible().catch(()=>false)) throw new Error(`${label}_laboral_visible`);
+    if(!await v.locator('#hxDivisasBtn').isVisible().catch(()=>false)) throw new Error(`${label}_divisas_not_visible`);
+    const laboral=v.locator('#hxLaboralBtn');
+    if(!await laboral.isVisible().catch(()=>false)) throw new Error(`${label}_laboral_not_visible`);
+    await laboral.click();
+    await v.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:20000});
     if(viewport.width<600){const ov=await v.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth);if(ov>8)throw new Error(`${label}_overflow_${ov}`);}
     append(`${label}_PERMISSIONS_LAYOUT=PASS`); await c.close();
   }
@@ -94,8 +104,8 @@ finally{
     const u=await at(`https://api.airtable.com/v0/${BASE}/${USERS}?pageSize=100`);
     const rs=u.json?.records||[]; const left=rs.filter(r=>/^cert-v3-(admin|viewer)-/.test(String(r.fields?.Usuario||''))).length;
     append(left===0?'TEMP_USERS_CLEANUP=PASS':`TEMP_USERS_CLEANUP=FAIL:left_${left}`);
-    append(rs.length===8?'REAL_USERS_FINAL_COUNT_8=PASS':`REAL_USERS_FINAL_COUNT_8=FAIL:count_${rs.length}`);
-    if(left!==0||rs.length!==8) overallPass=false;
+    append(rs.length===baselineUserCount?'REAL_USERS_BASELINE_RESTORED=PASS':`REAL_USERS_BASELINE_RESTORED=FAIL:baseline_${baselineUserCount}_count_${rs.length}`);
+    if(left!==0||rs.length!==baselineUserCount) overallPass=false;
   }catch(e){append(`CLEANUP_VERIFY=FAIL:${String(e.message||e).replace(/\s+/g,'_')}`);overallPass=false;}
   append(overallPass?'OVERALL=PASS':'OVERALL=FAIL');
 }

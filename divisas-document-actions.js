@@ -78,6 +78,7 @@
       mail.textContent = 'Enviar por Gmail';
       mail.title = 'Descarga el PDF y abre Gmail con el correo prellenado';
     }
+    return Boolean(pdf && mail);
   }
 
   function pdfText(cmd, x, y, size, text, bold = false, color = '0.10 0.09 0.08') {
@@ -269,7 +270,9 @@
     else sendQuote();
   }, true);
 
-  const observer = new MutationObserver(decorate);
+  const observer = new MutationObserver(() => {
+    if (decorate()) observer.disconnect();
+  });
   observer.observe(document.documentElement, { childList: true, subtree: true });
-  decorate();
+  if (decorate()) observer.disconnect();
 })();
