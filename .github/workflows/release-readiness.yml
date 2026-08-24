@@ -248,7 +248,7 @@ jobs:
           trap cleanup EXIT
           echo 'BROWSER_TEMP_USERS_CREATED=PASS' >> "$RESULT_FILE"
 
-          cat > /tmp/release-ui.mjs <<'JS'
+          cat > "$GITHUB_WORKSPACE/.release-ui.mjs" <<'JS'
           import { chromium } from 'playwright';
           import fs from 'node:fs';
           const append=s=>fs.appendFileSync(process.env.RESULT_FILE,s+'\n');
@@ -303,7 +303,8 @@ jobs:
             append('BROWSER_E2E=PASS');
           }catch(e){append(`BROWSER_E2E=FAIL:${String(e.message||e).replace(/\s+/g,' ').slice(0,300)}`);throw e;}finally{await browser.close();}
           JS
-          AU="$AU" AP="$AP" VU="$VU" VP="$VP" node /tmp/release-ui.mjs
+          AU="$AU" AP="$AP" VU="$VU" VP="$VP" node "$GITHUB_WORKSPACE/.release-ui.mjs"
+          rm -f "$GITHUB_WORKSPACE/.release-ui.mjs"
 
       - name: Verify disposable cleanup and finalize verdict
         if: always()
