@@ -25,6 +25,7 @@
         const preTag = '<scr' + 'ipt src="security-pre.js?v=20260820"></scr' + 'ipt>\n';
         const runtimeTag = '<scr' + 'ipt defer src="security-runtime.js?v=final-20260824-1"></scr' + 'ipt>\n';
         const postTag = '<scr' + 'ipt defer src="security-post.js?v=final-20260824-1"></scr' + 'ipt>\n';
+        const bankAlignmentTag = '<scr' + 'ipt defer src="card-bank-alignment.js?v=20260824-bank-align-1"></scr' + 'ipt>\n';
         const mailTag = '<scr' + 'ipt defer src="mail-provider.js?v=20260820"></scr' + 'ipt>\n';
         const divisasTag = '<scr' + 'ipt defer src="divisas-hx-pro.js?v=20260822-all-users-1"></scr' + 'ipt>\n';
         const divisasFixTag = '<scr' + 'ipt defer src="divisas-hx-pro-fix.js?v=20260822-navigation-1"></scr' + 'ipt>\n';
@@ -41,7 +42,7 @@
         }
 
         html = html.replace(mainMarker, preTag + mainMarker);
-        html = html.replace('</body>', runtimeTag + postTag + mailTag + divisasTag + divisasFixTag + divisasRefreshTag + divisasDocsTag + laboralTag + laboralAccessTag + laboralDismissalTag + laboralImssTag + laboralNavigationFixTag + '</body>');
+        html = html.replace('</body>', runtimeTag + postTag + bankAlignmentTag + mailTag + divisasTag + divisasFixTag + divisasRefreshTag + divisasDocsTag + laboralTag + laboralAccessTag + laboralDismissalTag + laboralImssTag + laboralNavigationFixTag + '</body>');
 
         document.open();
         document.write(html);
