@@ -99,7 +99,7 @@ try {
   cors.headers.get('access-control-allow-origin')!=='https://evil.example' ? pass('CORS_EVIL_ORIGIN_BLOCKED') : fail('CORS_EVIL_ORIGIN_BLOCKED');
 
   const suffix=`${Date.now()}-${Math.floor(Math.random()*1e6)}`;
-  adminUser=`release-admin-${suffix}`; viewerUser=`release-viewer-${suffix}`;
+  adminUser=`releasev2-admin-${suffix}`; viewerUser=`releasev2-viewer-${suffix}`;
   adminPass=`A${crypto.randomUUID()}z9!`; viewerPass=`V${crypto.randomUUID()}x8!`;
   const create=await request(`https://api.airtable.com/v0/${BASE}/${USERS}`,{
     method:'POST', headers:atHeaders({'Content-Type':'application/json'}),
@@ -126,7 +126,7 @@ try {
 
   const udb=await request(`https://api.airtable.com/v0/${BASE}/${USERS}?pageSize=100`,{headers:atHeaders()});
   const ur=udb.json?.records||[]; const logins=[]; let plain=0,badRole=0,obsolete=0;
-  for(const r of ur){ const f=r.fields||{}; const login=String(f['Usuario (login)']||f.Usuario||'').trim().toLowerCase(); const temporary=/^(release|browser|lab|imss|final-browser|fullqa|qa-ui|cert-v3)-(admin|viewer)-/.test(login); if(login)logins.push(login); if(f['Contraseña']&&!temporary)plain++; if(!['admin','viewer'].includes(String(f.Rol||'').toLowerCase()))badRole++; if(String(f['Empresas permitidas']||'').includes('PRU010101AAA'))obsolete++; }
+  for(const r of ur){ const f=r.fields||{}; const login=String(f['Usuario (login)']||f.Usuario||'').trim().toLowerCase(); const temporary=/^(release|releasev2|browser|lab|imss|final-browser|fullqa|qa-ui|cert-v3)-(admin|viewer)-/.test(login); if(login)logins.push(login); if(f['Contraseña']&&!temporary)plain++; if(!['admin','viewer'].includes(String(f.Rol||'').toLowerCase()))badRole++; if(String(f['Empresas permitidas']||'').includes('PRU010101AAA'))obsolete++; }
   plain===0 ? pass('USERS_NO_PLAINTEXT_PASSWORDS') : fail('USERS_NO_PLAINTEXT_PASSWORDS',`count_${plain}`);
   logins.length===new Set(logins).size ? pass('USERS_LOGIN_UNIQUENESS') : fail('USERS_LOGIN_UNIQUENESS');
   badRole===0 ? pass('USERS_ROLE_INTEGRITY') : fail('USERS_ROLE_INTEGRITY',`count_${badRole}`);
@@ -229,10 +229,10 @@ try {
     try{
       const f=await request(`https://api.airtable.com/v0/${BASE}/${USERS}?pageSize=100`,{headers:atHeaders()});
       const all=f.json?.records||[];
-      const left=all.filter(r=>/^(release-admin-|release-viewer-)/.test(String(r.fields?.Usuario||''))).length;
+      const left=all.filter(r=>/^(releasev2-admin-|releasev2-viewer-)/.test(String(r.fields?.Usuario||''))).length;
       left===0 ? pass('TEMP_USERS_CLEANUP') : fail('TEMP_USERS_CLEANUP',`left_${left}`);
       const qf=await request(`https://api.airtable.com/v0/${BASE}/${QUOTES}?pageSize=100`,{headers:atHeaders()});
-      const qleft=(qf.json?.records||[]).filter(r=>/^release-admin-/.test(String(r.fields?.Usuario||''))).length;
+      const qleft=(qf.json?.records||[]).filter(r=>/^releasev2-admin-/.test(String(r.fields?.Usuario||''))).length;
       qleft===0 ? pass('TEMP_QUOTES_CLEANUP') : fail('TEMP_QUOTES_CLEANUP',`left_${qleft}`);
     }catch(e){ fail('FINAL_CLEANUP_VERIFICATION','verification_error'); }
   }

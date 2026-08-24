@@ -179,13 +179,14 @@ jobs:
           print((Decimal('$AMT')*Decimal('$SELL')).quantize(Decimal('0.01'),rounding=ROUND_HALF_UP))
           PY
           )
-          QCODE=$(curl -sS -o /tmp/quote.json -w '%{http_code}' -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data "{\"amount\":$AMT,\"from\":\"USD\",\"to\":\"MXN\",\"rateType\":\"sell\",\"rate\":$SELL,\"total\":$EXPECT,\"clientName\":\"Release QA\"}" "$API_BASE/divisas/quotes")
+          QCODE=$(curl -sS -o /tmp/quote.json -w '%{http_code}' -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data "{\"amount\":$AMT,\"origin\":\"USD\",\"destination\":\"MXN\",\"rateType\":\"sell\",\"provider\":\"HX\",\"clientProject\":\"Release QA\"}" "$API_BASE/divisas/quotes")
           QUOTE_ID=$(jq -r '.record.id // .id // empty' /tmp/quote.json)
           if [[ "$QCODE" =~ ^20[01]$ ]] && [ -n "$QUOTE_ID" ]; then pass COTIZADOR_CREATE; else fail COTIZADOR_CREATE "http_$QCODE"; fi
-          ACTUAL=$(jq -r '.record.fields.Total // .fields.Total // .total // empty' /tmp/quote.json)
+          ACTUAL=$(jq -r '.record.fields.ResultadoConvertido // empty' /tmp/quote.json)
+          USED_RATE=$(jq -r '.record.fields.TipoCambioUsado // empty' /tmp/quote.json)
           python3 - <<PY >/dev/null 2>&1 && pass COTIZADOR_MATH || fail COTIZADOR_MATH
           from decimal import Decimal
-          a=Decimal(str('$ACTUAL')); e=Decimal(str('$EXPECT'))
+          a=Decimal(str('$ACTUAL')); e=(Decimal(str('$AMT'))*Decimal(str('$USED_RATE'))).quantize(Decimal('0.01'))
           assert abs(a-e) <= Decimal('0.01')
           PY
           curl -fsS -H "Authorization: Bearer $AIRTABLE_TOKEN" "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/$QUOTES_TABLE_ID/$QUOTE_ID" > /tmp/qdb.json
