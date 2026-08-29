@@ -33,13 +33,13 @@ async function testCatalogOrderUi(page,label){
   const categories=[...document.querySelectorAll('#sidebarCats .side-btn .side-text')].map(el=>(el.textContent||'').trim()).filter(Boolean);
   const counts=[...document.querySelectorAll('#sidebarCats .side-count')].map(el=>{const rect=el.getBoundingClientRect();const style=getComputedStyle(el);return {right:rect.right,width:rect.width,numeric:style.fontVariantNumeric};});
   const aligned=counts.length>1&&counts.every(item=>Math.abs(item.right-counts[0].right)<=1&&Math.abs(item.width-counts[0].width)<=1&&String(item.numeric).includes('tabular'));
-  return {companies,categories,companiesSorted:isSorted(companies),categoriesSorted:isSorted(categories),countsAligned:aligned};
+  return {companies,categories,companiesSorted:isSorted(companies),categoriesSorted:isSorted(categories),countsAligned:aligned,counts};
  });
  if(!state.companiesSorted)throw new Error(`${label}_companies_not_alphabetical`);
  pass(`${label}_COMPANIES_ALPHABETICAL`,`count_${state.companies.length}`);
  if(!state.categoriesSorted)throw new Error(`${label}_categories_not_alphabetical`);
  pass(`${label}_CATEGORIES_ALPHABETICAL`,`count_${state.categories.length}`);
- if(!state.countsAligned)throw new Error(`${label}_company_counts_not_aligned`);
+ if(!state.countsAligned)throw new Error(`${label}_company_counts_not_aligned_${JSON.stringify(state.counts)}`);
  pass(`${label}_COMPANY_COUNTS_ALIGNED`,`count_${state.categories.length}`);
 }
 async function testModulesUi(page,label){
