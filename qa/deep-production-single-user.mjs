@@ -24,6 +24,24 @@ async function loginApi(){return req(`${API}/login`,{method:'POST',headers:{'Con
 async function setRole(role){const r=await at(USERS,`/${testId}`,{method:'PATCH',body:JSON.stringify({fields:{Rol:role}})});if(!r.ok)throw new Error(`role_${role}_http_${r.status}`);await sleep(400);}
 async function browserLogin(page){await page.goto(`${SITE}?deep=${Date.now()}-${Math.random()}`,{waitUntil:'domcontentloaded',timeout:60000});await page.locator('#loginUser').waitFor({state:'visible',timeout:30000});await page.locator('#loginUser').fill(USER);await page.locator('#loginPass').fill(qaPassword());await page.locator('#btnLogin').click();await page.waitForFunction(()=>document.body.classList.contains('logged-in'),null,{timeout:30000});await page.locator('#searchInput').waitFor({state:'visible',timeout:30000});}
 async function clickVisible(page,sel){const l=page.locator(sel);await l.waitFor({state:'visible',timeout:20000});await l.scrollIntoViewIfNeeded();await l.click({timeout:20000});}
+async function testCatalogOrderUi(page,label){
+ await page.waitForFunction(()=>document.querySelectorAll('#cardsGrid .pcard').length>1,null,{timeout:30000});
+ const state=await page.evaluate(()=>{
+  const collator=new Intl.Collator('es-MX',{sensitivity:'base',numeric:true,ignorePunctuation:true});
+  const isSorted=values=>values.every((value,index)=>index===0||collator.compare(values[index-1],value)<=0);
+  const companies=[...document.querySelectorAll('#cardsGrid .pcard .pcard-name')].map(el=>(el.textContent||'').trim()).filter(Boolean);
+  const categories=[...document.querySelectorAll('#sidebarCats .side-btn .side-text')].map(el=>(el.textContent||'').trim()).filter(Boolean);
+  const counts=[...document.querySelectorAll('#sidebarCats .side-count')].map(el=>{const rect=el.getBoundingClientRect();const style=getComputedStyle(el);return {right:rect.right,width:rect.width,numeric:style.fontVariantNumeric};});
+  const aligned=counts.length>1&&counts.every(item=>Math.abs(item.right-counts[0].right)<=1&&Math.abs(item.width-counts[0].width)<=1&&String(item.numeric).includes('tabular'));
+  return {companies,categories,companiesSorted:isSorted(companies),categoriesSorted:isSorted(categories),countsAligned:aligned};
+ });
+ if(!state.companiesSorted)throw new Error(`${label}_companies_not_alphabetical`);
+ pass(`${label}_COMPANIES_ALPHABETICAL`,`count_${state.companies.length}`);
+ if(!state.categoriesSorted)throw new Error(`${label}_categories_not_alphabetical`);
+ pass(`${label}_CATEGORIES_ALPHABETICAL`,`count_${state.categories.length}`);
+ if(!state.countsAligned)throw new Error(`${label}_company_counts_not_aligned`);
+ pass(`${label}_COMPANY_COUNTS_ALIGNED`,`count_${state.categories.length}`);
+}
 async function testModulesUi(page,label){
  await clickVisible(page,'#hxDivisasBtn');await page.locator('#hxDivisasView').waitFor({state:'visible',timeout:20000});await page.waitForFunction(()=>{const t=document.querySelector('#hxfxAverage')?.textContent||'';return t&&t!=='—';},null,{timeout:30000});const fx=await page.locator('#hxfxCalcResult').innerText();if(!fx||fx==='—')throw new Error(`${label}_divisas_empty`);pass(`${label}_UI_DIVISAS`);
  await clickVisible(page,'#hxLaboralBtn');await page.locator('#hxLaboralView').waitFor({state:'visible',timeout:20000});await page.locator('#hxlabImssPanel').waitFor({state:'visible',timeout:20000});await page.locator('#hxliMonthly').fill('30000');await page.locator('#hxliServiceYear').fill('1');await page.locator('#hxliVacationDays').fill('12');await page.locator('#hxliCalculate').click();
@@ -49,7 +67,7 @@ try{
   finally{await c.close();}
  }
  await setRole('admin');pass('QA_ROLE_ADMIN_SET');l=await loginApi();const adminToken=l.json?.token;if(adminToken&&l.json?.usuario?.rol==='admin')pass('ADMIN_LOGIN_API');else throw new Error(`admin_login_http_${l.status}`);const au=await req(`${API}/usuarios`,{headers:auth(adminToken)});au.status===200&&au.json?.ok&&Array.isArray(au.json.records)?pass('ADMIN_USERS_API'):fail('ADMIN_USERS_API',`http_${au.status}`);const sensitive=JSON.stringify(au.json||{}).match(/Password Hash|Contraseña|TOTP Secret/gi)||[];sensitive.length===0?pass('ADMIN_USERS_API_SANITIZED'):fail('ADMIN_USERS_API_SANITIZED',`matches_${sensitive.length}`);const ar=await req(`${API}/divisas/current`,{headers:auth(adminToken)});ar.status===200&&ar.json?.ok?pass('ADMIN_DIVISAS_RATE'):fail('ADMIN_DIVISAS_RATE',`http_${ar.status}`);const ai=await req(`${API}/laboral/imss-cost`,{method:'POST',headers:auth(adminToken,{'Content-Type':'application/json'}),body:JSON.stringify({monthlySalary:30000,region:'general',serviceYear:1,vacationDays:12,aguinaldoDays:15,vacationPremiumPct:25,daysCotized:30.4,riskClass:'V'})});ai.status===200&&ai.json?.ok&&ai.json?.result?.assumptions?.riskClass==='V'?pass('ADMIN_IMSS_API'):fail('ADMIN_IMSS_API',`http_${ai.status}`);const ac=await browser.newContext({viewport:{width:1440,height:1000}});const ap=await ac.newPage();
- try{await browserLogin(ap);await ap.waitForFunction(()=>document.body.classList.contains('is-admin'),null,{timeout:20000});await ap.locator('#adminAddBtn').waitFor({state:'visible',timeout:15000});pass('ADMIN_UI_CONTROLS');await testModulesUi(ap,'ADMIN');}
+ try{await browserLogin(ap);await ap.waitForFunction(()=>document.body.classList.contains('is-admin'),null,{timeout:20000});await ap.locator('#adminAddBtn').waitFor({state:'visible',timeout:15000});pass('ADMIN_UI_CONTROLS');await testCatalogOrderUi(ap,'ADMIN');await testModulesUi(ap,'ADMIN');}
  catch(e){fail('ADMIN_UI_INSPECTION',String(e?.message||e).replace(/\s+/g,'_').slice(0,180));}
  finally{await ac.close();}
 }catch(e){fail('UNHANDLED',String(e?.message||e).replace(/\s+/g,'_').slice(0,300));}
