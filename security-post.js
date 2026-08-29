@@ -136,7 +136,8 @@
       const active = currentCat === c.nombre ? 'active' : '';
       const safeid = encodeURIComponent(c.nombre);
       return `<button class="side-btn ${active}" data-cat="${esc(c.nombre)}" onclick="filterCat(decodeURIComponent('${safeid}'),this)">
-        <span class="side-icon">${esc(c.icono)}</span> ${esc(c.nombre)}
+        <span class="side-icon">${esc(c.icono)}</span>
+        <span class="side-text">${esc(c.nombre)}</span>
         <span class="side-count" id="sc-${safeid}">${count}</span>
       </button>`;
     }).join('');
