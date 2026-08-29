@@ -6,7 +6,13 @@ on:
     paths:
       - '.github/workflows/deep-production-single-user.yml'
       - 'qa/deep-production-single-user.mjs'
-      - 'deep-production-trigger.txt'\n      - 'app.html'\n      - 'index.html'\n      - 'card-bank-alignment.js'\n      - 'divisas-*.js'\n      - 'laboral-*.js'\n      - 'worker/**'
+      - 'deep-production-trigger.txt'
+      - 'app.html'
+      - 'index.html'
+      - 'card-bank-alignment.js'
+      - 'divisas-*.js'
+      - 'laboral-*.js'
+      - 'worker/**'
   workflow_dispatch:
 
 permissions:
