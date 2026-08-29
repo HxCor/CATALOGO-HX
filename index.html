@@ -17,7 +17,7 @@
   <script>
     (async () => {
       try {
-        const response = await fetch('app.html?v=final-20260824-1', { cache: 'default' });
+        const response = await fetch('app.html?v=light-ios-20260829-1', { cache: 'force-cache' });
         if (!response.ok) throw new Error(`No se pudo cargar la aplicación (${response.status})`);
 
         let html = await response.text();
