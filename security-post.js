@@ -340,7 +340,7 @@
   } catch (error) {
     console.warn('No se pudo completar la limpieza local de usuarios.', error);
   }
-}
+
   // Regla final independiente: mantiene alineados los contadores del menú en escritorio.
   function ensureSidebarAlignmentStyles() {
     if (document.getElementById('hx-final-sidebar-alignment')) return;
