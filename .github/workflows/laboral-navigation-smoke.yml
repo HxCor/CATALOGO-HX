@@ -1,16 +1,6 @@
 name: CATALOGO-HX Laboral Navigation Smoke
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/laboral-navigation-smoke.yml'
-      - 'index.html'
-      - 'laboral-navigation-fix.js'
-      - 'laboral-hx.js'
-      - 'laboral-imss.js'
-      - 'divisas-hx-pro.js'
-      - 'divisas-hx-pro-fix.js'
   workflow_dispatch:
 
 permissions:

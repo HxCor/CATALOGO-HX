@@ -1,10 +1,6 @@
 name: Catalogo HX Browser Smoke
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/ui-smoke.yml'
   workflow_dispatch:
 
 permissions:

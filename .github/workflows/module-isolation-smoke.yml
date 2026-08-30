@@ -1,13 +1,6 @@
 name: CATALOGO-HX Module Isolation Smoke
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/module-isolation-smoke.yml'
-      - 'index.html'
-      - 'divisas-hx-pro-fix.js'
-      - 'laboral-navigation-fix.js'
   workflow_dispatch:
 
 permissions:

@@ -1,10 +1,6 @@
 name: CATALOGO-HX Final Browser Navigation
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/final-browser-navigation.yml'
   workflow_dispatch:
 
 permissions:

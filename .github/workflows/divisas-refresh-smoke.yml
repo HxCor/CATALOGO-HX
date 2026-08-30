@@ -1,14 +1,6 @@
 name: Divisas manual refresh smoke
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/divisas-refresh-smoke.yml'
-      - 'divisas-refresh-fix.js'
-      - 'divisas-hx-pro.js'
-      - 'worker/index-divisas.js'
-      - 'wrangler.toml'
   workflow_dispatch:
 
 permissions:
