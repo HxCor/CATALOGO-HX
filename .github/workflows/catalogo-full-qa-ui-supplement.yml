@@ -1,10 +1,6 @@
 name: CATALOGO-HX QA UI Supplement
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/catalogo-full-qa-ui-supplement.yml'
   workflow_dispatch:
 
 permissions:

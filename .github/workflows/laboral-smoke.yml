@@ -1,17 +1,6 @@
 name: Laboral HX Production Smoke
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'laboral-hx.js'
-      - 'laboral-access.js'
-      - 'laboral-despido.js'
-      - 'index.html'
-      - 'worker/index-docs.js'
-      - 'worker/index-laboral-despido.js'
-      - 'wrangler.toml'
-      - '.github/workflows/laboral-smoke.yml'
   workflow_dispatch:
 
 permissions:

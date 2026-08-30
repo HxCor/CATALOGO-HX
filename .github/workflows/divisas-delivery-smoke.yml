@@ -1,13 +1,6 @@
 name: Divisas PDF and delivery smoke
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/divisas-delivery-smoke.yml'
-      - 'divisas-document-actions.js'
-      - 'worker/index-docs.js'
-      - 'wrangler.toml'
   workflow_dispatch:
 
 permissions:

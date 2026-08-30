@@ -1,10 +1,6 @@
 name: Catalogo HX Production E2E
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/production-e2e.yml'
   workflow_dispatch:
 
 permissions:

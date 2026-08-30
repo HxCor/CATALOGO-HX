@@ -1,10 +1,6 @@
 name: CATALOGO-HX Full QA
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/catalogo-full-qa.yml'
   workflow_dispatch:
 
 permissions:

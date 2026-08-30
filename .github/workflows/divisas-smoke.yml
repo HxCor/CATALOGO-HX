@@ -1,10 +1,6 @@
 name: Divisas HX Pro Production Smoke
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/divisas-smoke.yml'
   workflow_dispatch:
 
 permissions:

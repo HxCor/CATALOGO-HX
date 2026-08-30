@@ -1,12 +1,6 @@
 name: CATALOGO-HX Release Readiness
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/release-readiness.yml'
-      - 'index.html'
-      - 'card-bank-alignment.js'
   workflow_dispatch:
 
 permissions:

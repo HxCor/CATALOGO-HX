@@ -1,10 +1,6 @@
 name: Catalogo HX User Visibility Smoke
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/user-visibility-smoke.yml'
   workflow_dispatch:
 
 permissions:

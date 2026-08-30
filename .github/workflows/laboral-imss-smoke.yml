@@ -1,14 +1,6 @@
 name: Laboral HX IMSS Production Smoke
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'laboral-imss.js'
-      - 'index.html'
-      - 'worker/index-laboral-imss.js'
-      - 'wrangler.toml'
-      - '.github/workflows/laboral-imss-smoke.yml'
   workflow_dispatch:
 
 permissions:
