@@ -340,4 +340,42 @@
   } catch (error) {
     console.warn('No se pudo completar la limpieza local de usuarios.', error);
   }
+}
+  // Regla final independiente: mantiene alineados los contadores del menú en escritorio.
+  function ensureSidebarAlignmentStyles() {
+    if (document.getElementById('hx-final-sidebar-alignment')) return;
+    const style = document.createElement('style');
+    style.id = 'hx-final-sidebar-alignment';
+    style.textContent = `
+      @media (min-width: 769px) {
+        .side-btn {
+          display: grid !important;
+          grid-template-columns: 24px minmax(0, 1fr) 38px !important;
+          align-items: center !important;
+          column-gap: 10px !important;
+        }
+        .side-btn .side-text {
+          min-width: 0 !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+          white-space: nowrap !important;
+        }
+        .side-count {
+          box-sizing: border-box !important;
+          width: 34px !important;
+          min-width: 34px !important;
+          max-width: 34px !important;
+          margin-left: 0 !important;
+          padding-left: 4px !important;
+          padding-right: 4px !important;
+          justify-self: end !important;
+          font-variant-numeric: tabular-nums !important;
+          font-feature-settings: "tnum" 1 !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  ensureSidebarAlignmentStyles();
 })();
