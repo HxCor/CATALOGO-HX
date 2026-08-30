@@ -22,6 +22,18 @@ function auth(token,extra={}){return {...extra,Authorization:`Bearer ${token}`};
 function qaPassword(){const digest=crypto.createHmac('sha256',TOKEN).update('CATALOGO-HX-single-test-user-v1').digest('hex');return `Q!${digest.slice(0,18)}a9`;}
 async function loginApi(){return req(`${API}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({usuario:USER,password:qaPassword()})});}
 async function setRole(role){const r=await at(USERS,`/${testId}`,{method:'PATCH',body:JSON.stringify({fields:{Rol:role}})});if(!r.ok)throw new Error(`role_${role}_http_${r.status}`);await sleep(400);}
+async function waitForLiveRelease(){
+ const local=fs.readFileSync('index.html','utf8');
+ const expected=[...local.matchAll(/(?:app\.html|security-post\.js)\?v=[^"'\s<]+/g)].map(m=>m[0]);
+ if(expected.length<2)throw new Error('local_release_markers_missing');
+ const deadline=Date.now()+180000;
+ while(Date.now()<deadline){
+  const live=await req(`${SITE}?release-wait=${Date.now()}`,{headers:{'Cache-Control':'no-cache'}});
+  if(live.status===200&&expected.every(marker=>live.text.includes(marker))){pass('LIVE_RELEASE_VERSION',expected.join(','));return;}
+  await sleep(5000);
+ }
+ throw new Error(`live_release_timeout_${expected.join('_')}`);
+}
 async function browserLogin(page){await page.goto(`${SITE}?deep=${Date.now()}-${Math.random()}`,{waitUntil:'domcontentloaded',timeout:60000});await page.locator('#loginUser').waitFor({state:'visible',timeout:30000});await page.locator('#loginUser').fill(USER);await page.locator('#loginPass').fill(qaPassword());await page.locator('#btnLogin').click();await page.waitForFunction(()=>document.body.classList.contains('logged-in'),null,{timeout:30000});await page.locator('#searchInput').waitFor({state:'visible',timeout:30000});}
 async function clickVisible(page,sel){const l=page.locator(sel);await l.waitFor({state:'visible',timeout:20000});await l.scrollIntoViewIfNeeded();await l.click({timeout:20000});}
 async function testCatalogOrderUi(page,label){
@@ -49,7 +61,7 @@ async function testModulesUi(page,label){
  const txt=await page.locator('#hxliResult').innerText();const normalized=txt.toLocaleLowerCase('es-MX');for(const m of ['SBC diario','INFONAVIT','Costo anual estimado','NO ES DETERMINACIÓN OFICIAL'])if(!normalized.includes(m.toLocaleLowerCase('es-MX')))throw new Error(`${label}_imss_missing_${m}`);const sbcVisible=await page.locator('#hxliResult .hxli-summary-card').filter({hasText:'SBC diario'}).isVisible().catch(()=>false);if(!sbcVisible)throw new Error(`${label}_sbc_not_visible`);pass(`${label}_UI_IMSS`);
 }
 try{
- write();if(!TOKEN||!BASE)throw new Error('missing_secrets');pass('SECRETS_CONFIGURED');const site=await req(`${SITE}?deep-boot=${Date.now()}`);site.status===200?pass('SITE_ONLINE'):fail('SITE_ONLINE',`http_${site.status}`);const root=await req(`${API}/`);root.status===200?pass('API_ONLINE'):fail('API_ONLINE',`http_${root.status}`);
+ write();if(!TOKEN||!BASE)throw new Error('missing_secrets');pass('SECRETS_CONFIGURED');const site=await req(`${SITE}?deep-boot=${Date.now()}`);site.status===200?pass('SITE_ONLINE'):fail('SITE_ONLINE',`http_${site.status}`);await waitForLiveRelease();const root=await req(`${API}/`);root.status===200?pass('API_ONLINE'):fail('API_ONLINE',`http_${root.status}`);
  for(const asset of ['divisas-hx-pro.js','divisas-hx-pro-fix.js','laboral-hx.js','laboral-imss.js','laboral-access.js','laboral-permissions-fix.js','laboral-navigation-fix.js']){const r=await req(`${SITE}${asset}?deep=${Date.now()}`);r.status===200?pass(`ASSET_${asset.replace(/[^A-Za-z0-9]/g,'_').toUpperCase()}`):fail(`ASSET_${asset}`,`http_${r.status}`);}
  const ul=await at(USERS,'?pageSize=100');if(!ul.ok)throw new Error(`users_http_${ul.status}`);const all=ul.json?.records||[];const tests=all.filter(r=>String(r.fields?.['Usuario (login)']||r.fields?.Usuario||'').toLowerCase()===USER);if(tests.length!==1)throw new Error(`qa_user_count_${tests.length}`);testId=tests[0].id;pass('SINGLE_QA_USER_PRESENT');String(tests[0].fields?.Contraseña||'').trim()?fail('QA_PASSWORD_HASH_ONLY','plaintext_present'):pass('QA_PASSWORD_HASH_ONLY');
  await setRole('viewer');pass('QA_ROLE_VIEWER_SET');let l=await loginApi();const viewerToken=l.json?.token;if(viewerToken&&l.json?.usuario?.rol==='viewer')pass('VIEWER_LOGIN_API');else throw new Error(`viewer_login_http_${l.status}`);const vu=await req(`${API}/usuarios`,{headers:auth(viewerToken)});vu.status===403?pass('VIEWER_USERS_BLOCKED'):fail('VIEWER_USERS_BLOCKED',`http_${vu.status}`);const vp=await req(`${API}/proveedores`,{headers:auth(viewerToken)});vp.status===200&&vp.json?.ok&&vp.json?.records?.length===1?pass('VIEWER_PROVIDER_SCOPE'):fail('VIEWER_PROVIDER_SCOPE',`count_${vp.json?.records?.length??'na'}`);const vr=await req(`${API}/divisas/current`,{headers:auth(viewerToken)});vr.status===200&&vr.json?.ok&&Number(vr.json?.data?.average)>0?pass('VIEWER_DIVISAS_RATE'):fail('VIEWER_DIVISAS_RATE',`http_${vr.status}`);
