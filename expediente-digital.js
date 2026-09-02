@@ -374,18 +374,7 @@
 
   function install() {
     ensureContainers();
-    const originalOpenDetail = window.openDetail;
-    if (typeof originalOpenDetail === 'function' && !originalOpenDetail.__hxExpedienteWrapped) {
-      const wrapped = function(index) {
-        const result = originalOpenDetail.apply(this, arguments);
-        const providers = typeof getProveedores === 'function' ? getProveedores() : [];
-        const provider = providers[index];
-        queueMicrotask(() => loadDocuments(provider));
-        return result;
-      };
-      wrapped.__hxExpedienteWrapped = true;
-      window.openDetail = wrapped;
-    }
+    window.hxOpenExpediente = loadDocuments;
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
