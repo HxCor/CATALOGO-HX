@@ -243,7 +243,8 @@ async function listDocuments(request, env, session, url) {
 
 async function uploadAttachment(env, recordId, file) {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const endpoint = `https://content.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${recordId}/fldOAQeVTqu44u1Bd/uploadAttachment`;
+  const attachmentField = env.AIRTABLE_FIELD_EXPEDIENTE_ARCHIVO || 'fldOAQeVTqu44u1Bd';
+  const endpoint = `https://content.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${recordId}/${attachmentField}/uploadAttachment`;
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
