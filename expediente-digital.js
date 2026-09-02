@@ -213,6 +213,31 @@
     body.querySelectorAll('[data-hx-history-toggle]').forEach(button => button.addEventListener('click', () => document.getElementById(`hx-history-${button.dataset.hxHistoryToggle}`)?.classList.toggle('open')));
   }
 
+  async function hydrateProvider(provider) {
+    const banks = Array.isArray(provider?.bancos) ? provider.bancos : [];
+    if (provider?._airtableId && banks.every(bank => bank._airtableId)) return provider;
+    const [providersResponse, banksResponse] = await Promise.all([
+      sessionFetch('/proveedores'),
+      sessionFetch('/bancos'),
+    ]);
+    const [providersData, banksData] = await Promise.all([providersResponse.json(), banksResponse.json()]);
+    if (!providersResponse.ok || !providersData.ok) throw new Error('No se pudo vincular la empresa con Airtable.');
+    const providerRecords = Array.isArray(providersData.records) ? providersData.records : [];
+    const match = providerRecords.find(record => String(record.fields?.RFC || '').trim().toUpperCase() === String(provider?.rfc || '').trim().toUpperCase());
+    if (!match) throw new Error('Esta empresa todavía no está vinculada con su registro de Airtable.');
+    const bankRecords = banksResponse.ok && banksData.ok && Array.isArray(banksData.records) ? banksData.records : [];
+    const linkedBanks = bankRecords.filter(record => Array.isArray(record.fields?.Proveedor) && record.fields.Proveedor.includes(match.id)).map(record => ({
+      _airtableId: record.id,
+      nombre: record.fields?.['Nombre de Banco'] || record.fields?.Empresa || '',
+      cuenta: record.fields?.Cuenta || '',
+      clabe: record.fields?.CLABE || '',
+      titular: record.fields?.['Titular de la cuenta'] || '',
+    }));
+    provider._airtableId = match.id;
+    provider.bancos = linkedBanks;
+    return provider;
+  }
+
   async function loadDocuments(provider) {
     ensureContainers();
     selectedProvider = provider;
@@ -221,13 +246,9 @@
     body.className = 'hx-expediente-loading';
     body.textContent = 'Cargando expediente…';
     progress.textContent = '—';
-    if (!provider?._airtableId) {
-      body.className = 'hx-expediente-error';
-      body.textContent = 'Esta empresa todavía no está vinculada con su registro de Airtable.';
-      return;
-    }
     try {
-      const response = await sessionFetch(`/expedientes?proveedorId=${encodeURIComponent(provider._airtableId)}`);
+      selectedProvider = await hydrateProvider(provider);
+      const response = await sessionFetch(`/expedientes?proveedorId=${encodeURIComponent(selectedProvider._airtableId)}`);
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.error || 'No se pudo cargar el expediente');
       renderDocuments(Array.isArray(data.records) ? data.records : []);
