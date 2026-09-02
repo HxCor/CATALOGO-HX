@@ -7,49 +7,114 @@
   <!-- Catálogo 2026: bootstrap seguro -->
   <style>
     html,body{margin:0;min-height:100%;background:#1a1917;font-family:Arial,sans-serif}
-    #boot{min-height:100vh;display:flex;align-items:center;justify-content:center;gap:12px;color:#fff;font-size:14px;letter-spacing:.3px}
-    #boot::before{content:"";width:18px;height:18px;border:2px solid rgba(255,255,255,.25);border-top-color:#2f9b68;border-radius:50%;animation:hxspin .8s linear infinite}
+    #boot{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#fff;font-size:14px;letter-spacing:.3px;text-align:center;padding:24px}
+    #boot.loading::before{content:"";width:18px;height:18px;border:2px solid rgba(255,255,255,.25);border-top-color:#2f9b68;border-radius:50%;animation:hxspin .8s linear infinite}
+    #bootMsg{max-width:34ch;line-height:1.6}
+    #bootRetry{display:none;background:#2f9b68;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:14px;font-family:inherit;cursor:pointer}
+    #bootRetry:hover{background:#268257}
+    #bootVer{font-size:11px;color:rgba(255,255,255,.35);letter-spacing:.5px}
     @keyframes hxspin{to{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
-  <div id="boot">Cargando Catálogo HX…</div>
+  <div id="boot" class="loading">
+    <div id="bootMsg">Cargando Catálogo HX…</div>
+    <button id="bootRetry" type="button">Reintentar</button>
+    <div id="bootVer"></div>
+  </div>
   <script>
+    // Sello único de caché para TODOS los assets del bootstrap.
+    // Al bumpearlo, se bumpean app.html y los 14 módulos a la vez: por
+    // construcción ya no puede haber mezcla de versiones en el mismo arranque.
+    const ASSET_VERSION = 'final-20260824-1';
+
+    // Diagnóstico remoto: cualquiera puede leer la versión en la consola, y el
+    // reporte de errores la adjunta automáticamente. No requiere tocar app.html.
+    window.HX_VERSION = ASSET_VERSION;
+    document.documentElement.dataset.hxVersion = ASSET_VERSION;
+
+    // Orden de carga. No reordenar sin revisar dependencias:
+    // security-pre corre antes del script principal; el resto va diferido al final.
+    const PRE_MODULES = ['security-pre.js'];
+    const DEFERRED_MODULES = [
+      'security-runtime.js',
+      'security-post.js',
+      'card-bank-alignment.js',
+      'mail-provider.js',
+      'divisas-hx-pro.js',
+      'divisas-hx-pro-fix.js',
+      'divisas-refresh-fix.js',
+      'divisas-document-actions.js',
+      'laboral-hx.js',
+      'laboral-access.js',
+      'laboral-despido.js',
+      'laboral-imss.js',
+      'laboral-navigation-fix.js',
+    ];
+
+    const BOOT_ATTEMPTS = 3;
+    const BOOT_BACKOFF_MS = [600, 1800];
+
+    const tag = (src, defer) =>
+      '<scr' + 'ipt' + (defer ? ' defer' : '') +
+      ' src="' + src + '?v=' + ASSET_VERSION + '"></scr' + 'ipt>\n';
+
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    function showBootError(message) {
+      const boot = document.getElementById('boot');
+      if (!boot) return;
+      boot.classList.remove('loading');
+      document.getElementById('bootMsg').textContent = message;
+      const retry = document.getElementById('bootRetry');
+      retry.style.display = 'inline-block';
+      retry.onclick = () => location.reload();
+      document.getElementById('bootVer').textContent = 'versión ' + ASSET_VERSION;
+    }
+
+    async function fetchApp() {
+      let lastError = null;
+      for (let attempt = 1; attempt <= BOOT_ATTEMPTS; attempt++) {
+        try {
+          const response = await fetch('app.html?v=' + ASSET_VERSION, { cache: 'default' });
+          if (!response.ok) throw new Error(`No se pudo cargar la aplicación (${response.status})`);
+          return await response.text();
+        } catch (error) {
+          lastError = error;
+          if (attempt < BOOT_ATTEMPTS) {
+            document.getElementById('bootMsg').textContent =
+              `Reintentando… (${attempt} de ${BOOT_ATTEMPTS - 1})`;
+            await sleep(BOOT_BACKOFF_MS[attempt - 1]);
+          }
+        }
+      }
+      throw lastError;
+    }
+
     (async () => {
       try {
-        const response = await fetch('app.html?v=expediente-20260902-1', { cache: 'force-cache' });
-        if (!response.ok) throw new Error(`No se pudo cargar la aplicación (${response.status})`);
-
-        let html = await response.text();
+        let html = await fetchApp();
         const mainMarker = '<scr' + 'ipt>\nconst LOGOS';
-        const preTag = '<scr' + 'ipt src="security-pre.js?v=20260820"></scr' + 'ipt>\n';
-        const runtimeTag = '<scr' + 'ipt defer src="security-runtime.js?v=final-20260824-1"></scr' + 'ipt>\n';
-        const postTag = '<scr' + 'ipt defer src="security-post.js?v=rubro-align-20260830-2"></scr' + 'ipt>\n';
-        const bankAlignmentTag = '<scr' + 'ipt defer src="card-bank-alignment.js?v=20260824-bank-align-1"></scr' + 'ipt>\n';
-        const mailTag = '<scr' + 'ipt defer src="mail-provider.js?v=20260820"></scr' + 'ipt>\n';        const expedienteTag = '<scr' + 'ipt defer src="expediente-loader.js?v=20260902-1"></scr' + 'ipt>\n';
-        const divisasTag = '<scr' + 'ipt defer src="divisas-hx-pro.js?v=20260822-all-users-1"></scr' + 'ipt>\n';
-        const divisasFixTag = '<scr' + 'ipt defer src="divisas-hx-pro-fix.js?v=20260822-navigation-1"></scr' + 'ipt>\n';
-        const divisasRefreshTag = '<scr' + 'ipt defer src="divisas-refresh-fix.js?v=final-20260824-1"></scr' + 'ipt>\n';
-        const divisasDocsTag = '<scr' + 'ipt defer src="divisas-document-actions.js?v=final-20260824-1"></scr' + 'ipt>\n';
-        const laboralTag = '<scr' + 'ipt defer src="laboral-hx.js?v=final-20260824-1"></scr' + 'ipt>\n';
-        const laboralAccessTag = '<scr' + 'ipt defer src="laboral-access.js?v=final-20260824-1"></scr' + 'ipt>\n';
-        const laboralDismissalTag = '<scr' + 'ipt defer src="laboral-despido.js?v=final-20260824-1"></scr' + 'ipt>\n';
-        const laboralImssTag = '<scr' + 'ipt defer src="laboral-imss.js?v=final-20260824-1"></scr' + 'ipt>\n';
-        const laboralNavigationFixTag = '<scr' + 'ipt defer src="laboral-navigation-fix.js?v=20260822-all-users-1"></scr' + 'ipt>\n';
 
         if (!html.includes(mainMarker)) {
           throw new Error('No se encontró el punto de inserción de seguridad.');
         }
 
-        html = html.replace(mainMarker, preTag + mainMarker);
-        html = html.replace('</body>', runtimeTag + postTag + bankAlignmentTag + mailTag + expedienteTag + divisasTag + divisasFixTag + divisasRefreshTag + divisasDocsTag + laboralTag + laboralAccessTag + laboralDismissalTag + laboralImssTag + laboralNavigationFixTag + '</body>');
+        html = html.replace(
+          mainMarker,
+          PRE_MODULES.map(src => tag(src, false)).join('') + mainMarker
+        );
+        html = html.replace(
+          '</body>',
+          DEFERRED_MODULES.map(src => tag(src, true)).join('') + '</body>'
+        );
 
         document.open();
         document.write(html);
         document.close();
       } catch (error) {
         console.error(error);
-        document.getElementById('boot').innerHTML = 'No se pudo iniciar el catálogo. Actualiza la página o contacta al administrador.';
+        showBootError('No se pudo iniciar el catálogo. Revisa tu conexión y vuelve a intentar.');
       }
     })();
   </script>
