@@ -4747,9 +4747,11 @@ async function refreshCatalogoEnSegundoPlano() {
       const fields = record.fields || {};
       const links = Array.isArray(fields["Proveedor"]) ? fields["Proveedor"] : [];
       const banco = {
+        _airtableId: record.id || "",
         nombre: fields["Nombre de Banco"] || fields["Empresa"] || "",
         cuenta: fields["Cuenta"] || "",
-        clabe: fields["CLABE"] || ""
+        clabe: fields["CLABE"] || "",
+        titular: fields["Titular de la cuenta"] || ""
       };
       links.forEach(providerId => {
         if (!bancosPorProveedor[providerId]) bancosPorProveedor[providerId] = [];
