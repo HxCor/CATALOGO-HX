@@ -1,4 +1,4 @@
-import app from './index-docs.js';
+import app from './index-expedientes.js';
 
 const ALLOWED_ORIGIN = 'https://hxcor.github.io';
 const DISCLAIMER = 'Resultado exclusivamente informativo y estimativo. No constituye asesoría jurídica, laboral, fiscal o contable, ni una determinación oficial de autoridad. No debe utilizarse por sí solo como documento para exigir, reclamar o acreditar el pago de cantidad alguna. Los conceptos aplicables dependen de los hechos, contrato, pruebas, procedimiento y resolución de autoridad competente.';
