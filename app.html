@@ -4746,11 +4746,7 @@ async function refreshCatalogoEnSegundoPlano() {
     bancosRecords.forEach(record => {
       const fields = record.fields || {};
       const links = Array.isArray(fields["Proveedor"]) ? fields["Proveedor"] : [];
-      const banco = {
-        nombre: fields["Nombre de Banco"] || fields["Empresa"] || "",
-        cuenta: fields["Cuenta"] || "",
-        clabe: fields["CLABE"] || ""
-      };
+      const banco = {\n        _airtableId: record.id || "",\n        nombre: fields["Nombre de Banco"] || fields["Empresa"] || "",\n        cuenta: fields["Cuenta"] || "",\n        clabe: fields["CLABE"] || "",\n        titular: fields["Titular de la cuenta"] || ""\n      };
       links.forEach(providerId => {
         if (!bancosPorProveedor[providerId]) bancosPorProveedor[providerId] = [];
         bancosPorProveedor[providerId].push(banco);
