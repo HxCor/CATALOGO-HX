@@ -17,6 +17,17 @@
     const style = document.createElement('style');
     style.id = 'hx-bank-alignment-style';
     style.textContent = `
+      #cardsGrid > .${CARD_SELECTOR} {
+        display: flex !important;
+        flex-direction: column !important;
+      }
+      #cardsGrid > .${CARD_SELECTOR} > .pcard-mid {
+        flex: 1 1 auto !important;
+      }
+      #cardsGrid > .${CARD_SELECTOR} > .pcard-footer,
+      #cardsGrid > .${CARD_SELECTOR} > .pcard-actions {
+        flex: 0 0 auto !important;
+      }
       .${SPACER_CLASS} {
         display: block;
         width: 100%;
@@ -43,13 +54,16 @@
     const grid = document.getElementById(GRID_ID);
     if (!grid) return;
 
+    // El observador se pausa mientras se insertan/ajustan espaciadores para
+    // que nuestras propias escrituras no provoquen otra ronda innecesaria.
+    gridObserver?.disconnect();
+
     const gridRect = grid.getBoundingClientRect();
     const entries = [...grid.querySelectorAll(CARD_SELECTOR)]
       .map(card => {
         const footer = card.querySelector(FOOTER_SELECTOR);
         if (!footer) return null;
         const spacer = ensureSpacer(card, footer);
-        spacer.style.height = '0px';
         return { card, footer, spacer };
       })
       .filter(Boolean);
@@ -59,23 +73,25 @@
       const cardRect = entry.card.getBoundingClientRect();
       const rowKey = Math.round((cardRect.top - gridRect.top) / ROW_TOLERANCE_PX) * ROW_TOLERANCE_PX;
       const row = rows.get(rowKey) || [];
-      row.push(entry);
+      const spacerHeight = Number.parseFloat(entry.spacer.style.height) || 0;
+      row.push({
+        ...entry,
+        naturalFooterTop: entry.footer.getBoundingClientRect().top - cardRect.top - spacerHeight
+      });
       rows.set(rowKey, row);
     });
 
     rows.forEach(row => {
-      const measurements = row.map(entry => ({
-        ...entry,
-        footerTop: entry.footer.getBoundingClientRect().top - entry.card.getBoundingClientRect().top
-      }));
-      const targetTop = Math.max(...measurements.map(item => item.footerTop));
-      measurements.forEach(item => {
-        const extra = Math.max(0, Math.round((targetTop - item.footerTop) * 100) / 100);
+      const targetTop = Math.max(...row.map(item => item.naturalFooterTop));
+      row.forEach(item => {
+        const extra = Math.max(0, Math.round((targetTop - item.naturalFooterTop) * 100) / 100);
         item.spacer.style.height = `${extra}px`;
       });
     });
 
     grid.dataset.hxBankAlignment = 'ready';
+
+    gridObserver?.observe(grid, { childList: true, subtree: true });
   }
 
   function scheduleAlignment() {
@@ -98,6 +114,8 @@
     gridObserver = new MutationObserver(scheduleAlignment);
     gridObserver.observe(grid, { childList: true, subtree: true });
 
+    // Detecta cambios de altura del grid (imágenes, fuentes o nuevas filas)
+    // sin observar cada nodo interno ni bloquear los clics.
     if ('ResizeObserver' in window) {
       resizeObserver = new ResizeObserver(scheduleAlignment);
       resizeObserver.observe(grid);

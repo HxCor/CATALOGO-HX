@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Catálogo 2026 · Proveedores</title>
+  <link rel="preconnect" href="https://catalogo-hx-backend.armando-avila.workers.dev" crossorigin>
+  <link rel="dns-prefetch" href="//catalogo-hx-backend.armando-avila.workers.dev">
+  <link rel="preload" href="app.html?v=performance-20260920-1" as="fetch" crossorigin>
   <!-- Catálogo 2026: bootstrap seguro -->
   <style>
     html,body{margin:0;min-height:100%;background:#1a1917;font-family:Arial,sans-serif}
@@ -17,7 +20,7 @@
   <script>
     (async () => {
       try {
-        const response = await fetch('app.html?v=expediente-20260902-1', { cache: 'force-cache' });
+        const response = await fetch('app.html?v=performance-20260920-1', { cache: 'force-cache' });
         if (!response.ok) throw new Error(`No se pudo cargar la aplicación (${response.status})`);
 
         let html = await response.text();
@@ -25,7 +28,7 @@
         const preTag = '<scr' + 'ipt src="security-pre.js?v=20260820"></scr' + 'ipt>\n';
         const runtimeTag = '<scr' + 'ipt defer src="security-runtime.js?v=final-20260824-1"></scr' + 'ipt>\n';
         const postTag = '<scr' + 'ipt defer src="security-post.js?v=rubro-align-20260830-2"></scr' + 'ipt>\n';
-        const bankAlignmentTag = '<scr' + 'ipt defer src="card-bank-alignment.js?v=20260824-bank-align-1"></scr' + 'ipt>\n';
+        const bankAlignmentTag = '<scr' + 'ipt defer src="card-bank-alignment.js?v=20260920-bank-align-2"></scr' + 'ipt>\n';
         const mailTag = '<scr' + 'ipt defer src="mail-provider.js?v=20260820"></scr' + 'ipt>\n';        const expedienteTag = '<scr' + 'ipt defer src="expediente-loader.js?v=20260902-1"></scr' + 'ipt>\n';
         const divisasTag = '<scr' + 'ipt defer src="divisas-hx-pro.js?v=20260822-all-users-1"></scr' + 'ipt>\n';
         const divisasFixTag = '<scr' + 'ipt defer src="divisas-hx-pro-fix.js?v=20260822-navigation-1"></scr' + 'ipt>\n';
@@ -36,13 +39,14 @@
         const laboralDismissalTag = '<scr' + 'ipt defer src="laboral-despido.js?v=final-20260824-1"></scr' + 'ipt>\n';
         const laboralImssTag = '<scr' + 'ipt defer src="laboral-imss.js?v=final-20260824-1"></scr' + 'ipt>\n';
         const laboralNavigationFixTag = '<scr' + 'ipt defer src="laboral-navigation-fix.js?v=20260822-all-users-1"></scr' + 'ipt>\n';
+        const performanceTag = '<scr' + 'ipt defer src="performance-runtime.js?v=20260920-1"></scr' + 'ipt>\n';
 
         if (!html.includes(mainMarker)) {
           throw new Error('No se encontró el punto de inserción de seguridad.');
         }
 
         html = html.replace(mainMarker, preTag + mainMarker);
-        html = html.replace('</body>', runtimeTag + postTag + bankAlignmentTag + mailTag + expedienteTag + divisasTag + divisasFixTag + divisasRefreshTag + divisasDocsTag + laboralTag + laboralAccessTag + laboralDismissalTag + laboralImssTag + laboralNavigationFixTag + '</body>');
+        html = html.replace('</body>', runtimeTag + postTag + bankAlignmentTag + mailTag + expedienteTag + divisasTag + divisasFixTag + divisasRefreshTag + divisasDocsTag + laboralTag + laboralAccessTag + laboralDismissalTag + laboralImssTag + laboralNavigationFixTag + performanceTag + '</body>');
 
         document.open();
         document.write(html);

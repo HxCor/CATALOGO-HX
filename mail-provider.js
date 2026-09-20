@@ -71,8 +71,15 @@
 
   function relabelMailButtons(root = document) {
     root.querySelectorAll?.('.hx-email-btn').forEach(button => {
-      button.textContent = '✉️ Abrir en Gmail';
-      button.title = 'Abrir un correo prellenado en Gmail';
+      // Evita reescribir el mismo nodo en cada notificación. Asignar
+      // textContent aunque no cambie crea otra mutación y puede mantener al
+      // navegador en un ciclo que retrasa todos los clics del catálogo.
+      if (button.textContent !== '✉️ Abrir en Gmail') {
+        button.textContent = '✉️ Abrir en Gmail';
+      }
+      if (button.title !== 'Abrir un correo prellenado en Gmail') {
+        button.title = 'Abrir un correo prellenado en Gmail';
+      }
     });
   }
 
@@ -80,6 +87,14 @@
 
   const grid = document.getElementById('cardsGrid');
   if (grid && typeof MutationObserver !== 'undefined') {
-    new MutationObserver(() => relabelMailButtons(grid)).observe(grid, { childList: true, subtree: true });
+    let scheduled = false;
+    new MutationObserver(() => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        relabelMailButtons(grid);
+      });
+    }).observe(grid, { childList: true, subtree: true });
   }
 })();
